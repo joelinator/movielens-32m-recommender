@@ -1,0 +1,33 @@
+# Virtual environments & caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.cursor/
+0.16
+
+# Large MovieLens dataset CSVs and serialized pickles
+ratings.csv
+movies.csv
+tags.csv
+links.csv
+small.csv
+very_small.csv
+checksums.txt
+README.txt
+*.pkl
+model_params_pmf
+report.zip
+
+# LaTeX build artifacts (keep .tex, .bib, .sty, .bst, and final .pdf)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
