@@ -229,3 +229,165 @@ def parse_ratings_csv(
     }
 
 
+def _split_csr_by_label(
+    offsets: np.ndarray,
+    indices: np.ndarray,
+    raw_ratings: np.ndarray,
+    labels: np.ndarray,
+    num_rows: int,
+    num_cols: int,
+) -> Tuple[CSRMatrix, CSRMatrix]:
+    """Split a contiguous CSR structure into train (label > 0) and test (label == 0).
+
+    Because the input `indices` and `raw_ratings` are already contiguous by row,
+    boolean masking preserves row ordering without requiring an O(N log N) sort.
+    """
+    train_mask = labels > 0
+    test_mask = ~train_mask
+
+    # Compute row counts for train and test using reduceat on row boundaries
+    non_empty = offsets[:-1] < offsets[1:]
+    train_int = train_mask.astype(np.int32)
+    train_counts = np.zeros(num_rows, dtype=np.int32)
+    if np.all(non_empty):
+        train_counts = np.add.reduceat(train_int, offsets[:-1])
+    else:
+        valid_starts = offsets[:-1][non_empty]
+        # Fallback using bincount if any rows have 0 total interactions
+        row_ids = np.repeat(
+            np.arange(num_rows, dtype=np.int32), np.diff(offsets)
+        )
+        train_counts = np.bincount(
+            row_ids[train_mask], minlength=num_rows
+        ).astype(np.int32)
+
+    total_counts = np.diff(offsets).astype(np.int32)
+    test_counts = total_counts - train_counts
+
+    train_offsets = np.zeros(num_rows + 1, dtype=np.int32)
+    np.cumsum(train_counts, out=train_offsets[1:])
+
+    test_offsets = np.zeros(num_rows + 1, dtype=np.int32)
+    np.cumsum(test_counts, out=test_offsets[1:])
+
+    train_csr = CSRMatrix(
+        num_rows=num_rows,
+        num_cols=num_cols,
+        offsets=train_offsets,
+        indices=np.ascontiguousarray(indices[train_mask], dtype=np.int32),
+        ratings=np.ascontiguousarray(
+            raw_ratings[train_mask] * np.float32(0.5), dtype=np.float32
+        ),
+    )
+    test_csr = CSRMatrix(
+        num_rows=num_rows,
+        num_cols=num_cols,
+        offsets=test_offsets,
+        indices=np.ascontiguousarray(indices[test_mask], dtype=np.int32),
+        ratings=np.ascontiguousarray(
+            raw_ratings[test_mask] * np.float32(0.5), dtype=np.float32
+        ),
+    )
+    return train_csr, test_csr
+
+
+def load_indexed_dataset(pkl_path: str) -> IndexedDataset:
+    """Load a pickled dataset and construct dual train/test CSR matrices."""
+    with open(pkl_path, "rb") as f:
+        raw = pkl.load(f)
+
+    num_users = len(raw["users_index"])
+    num_movies = len(raw["movies_index"])
+
+    u_offsets = np.frombuffer(raw["users_offsets"], dtype=np.uint32).astype(
+        np.int32
+    )
+    u_movies = np.frombuffer(raw["users_movies"], dtype=np.uint32).astype(
+        np.int32
+    )
+    u_ratings = np.frombuffer(raw["users_ratings"], dtype=np.uint8)
+    u_labels = np.frombuffer(raw["users_labels"], dtype=np.uint8)
+
+    m_offsets = np.frombuffer(raw["movies_offsets"], dtype=np.uint32).astype(
+        np.int32
+    )
+    m_users = np.frombuffer(raw["movies_users"], dtype=np.uint32).astype(
+        np.int32
+    )
+    m_ratings = np.frombuffer(raw["movies_ratings"], dtype=np.uint8)
+    m_labels = np.frombuffer(raw["movies_labels"], dtype=np.uint8)
+
+    data_by_user_train, data_by_user_test = _split_csr_by_label(
+        u_offsets, u_movies, u_ratings, u_labels, num_users, num_movies
+    )
+    data_by_movie_train, data_by_movie_test = _split_csr_by_label(
+        m_offsets, m_users, m_ratings, m_labels, num_movies, num_users
+    )
+
+    return IndexedDataset(
+        num_users=num_users,
+        num_movies=num_movies,
+        data_by_user_train=data_by_user_train,
+        data_by_user_test=data_by_user_test,
+        data_by_movie_train=data_by_movie_train,
+        data_by_movie_test=data_by_movie_test,
+        users_index=raw["users_index"],
+        users_index_rev=raw["users_index_rev"],
+        movies_index=raw["movies_index"],
+        movies_index_rev=raw["movies_index_rev"],
+    )
+
+
+def load_full_csr_dataset(pkl_path: str) -> Tuple[CSRMatrix, CSRMatrix, Dict[str, Any]]:
+    """Load 100% of ratings (train + test combined) as dual CSR matrices."""
+    with open(pkl_path, "rb") as f:
+        raw = pkl.load(f)
+
+    num_users = len(raw["users_index"])
+    num_movies = len(raw["movies_index"])
+
+    u_offsets = np.frombuffer(raw["users_offsets"], dtype=np.uint32).astype(
+        np.int32
+    )
+    u_movies = np.frombuffer(raw["users_movies"], dtype=np.uint32).astype(
+        np.int32
+    )
+    u_ratings = (
+        np.frombuffer(raw["users_ratings"], dtype=np.uint8).astype(np.float32)
+        * np.float32(0.5)
+    )
+
+    m_offsets = np.frombuffer(raw["movies_offsets"], dtype=np.uint32).astype(
+        np.int32
+    )
+    m_users = np.frombuffer(raw["movies_users"], dtype=np.uint32).astype(
+        np.int32
+    )
+    m_ratings = (
+        np.frombuffer(raw["movies_ratings"], dtype=np.uint8).astype(np.float32)
+        * np.float32(0.5)
+    )
+
+    by_user = CSRMatrix(
+        num_rows=num_users,
+        num_cols=num_movies,
+        offsets=np.ascontiguousarray(u_offsets),
+        indices=np.ascontiguousarray(u_movies),
+        ratings=np.ascontiguousarray(u_ratings),
+    )
+    by_movie = CSRMatrix(
+        num_rows=num_movies,
+        num_cols=num_users,
+        offsets=np.ascontiguousarray(m_offsets),
+        indices=np.ascontiguousarray(m_users),
+        ratings=np.ascontiguousarray(m_ratings),
+    )
+    meta = {
+        "users_index": raw["users_index"],
+        "users_index_rev": raw["users_index_rev"],
+        "movies_index": raw["movies_index"],
+        "movies_index_rev": raw["movies_index_rev"],
+    }
+    return by_user, by_movie, meta
+
+
