@@ -182,7 +182,237 @@ def main() -> None:
 
     # 2. Practical 2: Bias-Only ALS on 5M and 32M datasets
     # Warmup JIT first
+    print("Warming up Bias ALS Numba kernels...")
+    _ = fit_bias_als(
+        ds_small,
+        num_iters=2,
+        lam=1.0,
+        gamma=0.05,
+        use_global_mean=True,
+        verify_dual_views=True,
+    )
+
+    print("Running Bias-Only ALS on MovieLens-5M (25 iterations)...")
+    res_bias_small = fit_bias_als(
+        ds_small,
+        num_iters=25,
+        lam=1.0,
+        gamma=0.05,
+        use_global_mean=True,
+        verify_dual_views=True,
+    )
+
+    print("Running Bias-Only ALS on MovieLens-32M (25 iterations)...")
+    res_bias_full = fit_bias_als(
+        ds_full,
+        num_iters=25,
+        lam=1.0,
+        gamma=0.05,
+        use_global_mean=True,
+        verify_dual_views=True,
+    )
+
+    # Compute dual-view loss discrepancies
+    diff_small = np.abs(
+        np.array(res_bias_small.train_loss_user_view)
+        - np.array(res_bias_small.train_loss_movie_view)
+    )
+    diff_full = np.abs(
+        np.array(res_bias_full.train_loss_user_view)
+        - np.array(res_bias_full.train_loss_movie_view)
+    )
+    rel_diff_full = diff_full / np.array(res_bias_full.train_loss_user_view)
+
+    # Plot Figure 2: Bias-Only ALS Loss & RMSE Convergence
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.75))
+    iters = np.arange(1, 26)
+
+    # Scale loss by 1e6 for clean axis ticks
+    loss_u_32m = np.array(res_bias_full.train_loss_user_view) / 1e6
+    loss_m_32m = np.array(res_bias_full.train_loss_movie_view) / 1e6
+    ax1.plot(
+        iters,
+        loss_u_32m,
+        color="#1f4e78",
+        linewidth=1.6,
+        label="32M: User CSR view $\\mathcal{L}_{\\mathrm{user}}$",
+    )
+    ax1.scatter(
+        iters[::2],
+        loss_m_32m[::2],
+        color="#d95f02",
+        marker="o",
+        s=22,
+        zorder=4,
+        label="32M: Movie CSR view $\\mathcal{L}_{\\mathrm{movie}}$",
+    )
+
+    ax1_twin = ax1.twinx()
+    loss_u_5m = np.array(res_bias_small.train_loss_user_view) / 1e6
+    loss_m_5m = np.array(res_bias_small.train_loss_movie_view) / 1e6
+    ax1_twin.plot(
+        iters,
+        loss_u_5m,
+        color="#1b9e77",
+        linestyle="--",
+        linewidth=1.4,
+        label="5M: User CSR view $\\mathcal{L}_{\\mathrm{user}}$",
+    )
+    ax1_twin.scatter(
+        iters[1::2],
+        loss_m_5m[1::2],
+        color="#7570b3",
+        marker="s",
+        s=18,
+        zorder=4,
+        label="5M: Movie CSR view $\\mathcal{L}_{\\mathrm{movie}}$",
+    )
+    ax1_twin.grid(False)
+
+    ax1.set_xlabel("(a) ALS Iteration $t$")
+    ax1.set_ylabel("32M Objective $\\mathcal{L}(a,b)$ ($\\times 10^6$)")
+    ax1_twin.set_ylabel("5M Objective $\\mathcal{L}(a,b)$ ($\\times 10^6$)")
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax1_twin.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=7.5)
+
+    # Right panel: Train and Test RMSE
+    ax2.plot(
+        iters,
+        res_bias_full.train_rmse,
+        color="#1f4e78",
+        linewidth=1.6,
+        label="32M Train RMSE",
+    )
+    ax2.plot(
+        iters,
+        res_bias_full.test_rmse,
+        color="#d95f02",
+        linewidth=1.6,
+        linestyle="-.",
+        label="32M Test RMSE",
+    )
+    ax2.plot(
+        iters,
+        res_bias_small.train_rmse,
+        color="#1b9e77",
+        linewidth=1.4,
+        linestyle="--",
+        label="5M Train RMSE",
+    )
+    ax2.plot(
+        iters,
+        res_bias_small.test_rmse,
+        color="#7570b3",
+        linewidth=1.4,
+        linestyle=":",
+        label="5M Test RMSE",
+    )
+    ax2.set_xlabel("(b) ALS Iteration $t$")
+    ax2.set_ylabel("Root Mean Squared Error (Stars)")
+    ax2.legend(loc="upper right", frameon=True)
+
+    fig.tight_layout()
+    fig2_path = figures_dir / "fig2_bias_als_convergence.pdf"
+    fig.savefig(fig2_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {fig2_path}")
+
+    summary = {
+        "practical_1": {
+            "small_5m": {
+                "num_users": ds_small.num_users,
+                "num_movies": ds_small.num_movies,
+                "num_ratings": int(len(small_ratings)),
+                "num_train": ds_small.num_train_ratings,
+                "num_test": ds_small.num_test_ratings,
+                "density_pct": float(
+                    100.0
+                    * len(small_ratings)
+                    / (ds_small.num_users * ds_small.num_movies)
+                ),
+                "mean_rating": float(np.mean(small_ratings)),
+                "std_rating": float(np.std(small_ratings)),
+                "user_deg_min": int(np.min(user_deg_small)),
+                "user_deg_median": float(np.median(user_deg_small)),
+                "user_deg_mean": float(np.mean(user_deg_small)),
+                "user_deg_max": int(np.max(user_deg_small)),
+                "movie_deg_min_nonzero": int(
+                    np.min(movie_deg_small[movie_deg_small > 0])
+                ),
+                "movie_deg_median": float(np.median(movie_deg_small)),
+                "movie_deg_mean": float(np.mean(movie_deg_small)),
+                "movie_deg_max": int(np.max(movie_deg_small)),
+                "load_time_sec": t_small_load,
+            },
+            "full_32m": {
+                "num_users": ds_full.num_users,
+                "num_movies": ds_full.num_movies,
+                "num_ratings": int(len(full_ratings)),
+                "num_train": ds_full.num_train_ratings,
+                "num_test": ds_full.num_test_ratings,
+                "density_pct": float(
+                    100.0
+                    * len(full_ratings)
+                    / (ds_full.num_users * ds_full.num_movies)
+                ),
+                "mean_rating": float(np.mean(full_ratings)),
+                "std_rating": float(np.std(full_ratings)),
+                "user_deg_min": int(np.min(user_deg_full)),
+                "user_deg_median": float(np.median(user_deg_full)),
+                "user_deg_mean": float(np.mean(user_deg_full)),
+                "user_deg_max": int(np.max(user_deg_full)),
+                "movie_deg_min_nonzero": int(
+                    np.min(movie_deg_full[movie_deg_full > 0])
+                ),
+                "movie_deg_zeros": int(np.sum(movie_deg_full == 0)),
+                "movie_deg_median": float(np.median(movie_deg_full)),
+                "movie_deg_mean": float(np.mean(movie_deg_full)),
+                "movie_deg_max": int(np.max(movie_deg_full)),
+                "alpha_user_mle": alpha_user_full,
+                "alpha_movie_mle": alpha_movie_full,
+                "star_values": [float(s) for s in star_values],
+                "star_counts": [int(c) for c in full_hist_counts],
+                "star_pcts": [float(p * 100.0) for p in full_hist_probs],
+                "load_time_sec": t_full_load,
+            },
+        },
+        "practical_2": {
+            "small_5m": {
+                "mu": res_bias_small.mu,
+                "initial_loss": res_bias_small.train_loss_user_view[0],
+                "final_loss": res_bias_small.train_loss_user_view[-1],
+                "initial_train_rmse": res_bias_small.train_rmse[0],
+                "final_train_rmse": res_bias_small.train_rmse[-1],
+                "initial_test_rmse": res_bias_small.test_rmse[0],
+                "final_test_rmse": res_bias_small.test_rmse[-1],
+                "max_abs_dual_loss_diff": float(np.max(diff_small)),
+                "mean_epoch_time_sec": float(np.mean(res_bias_small.epoch_times)),
+            },
+            "full_32m": {
+                "mu": res_bias_full.mu,
+                "initial_loss": res_bias_full.train_loss_user_view[0],
+                "final_loss": res_bias_full.train_loss_user_view[-1],
+                "initial_train_rmse": res_bias_full.train_rmse[0],
+                "final_train_rmse": res_bias_full.train_rmse[-1],
+                "initial_test_rmse": res_bias_full.test_rmse[0],
+                "final_test_rmse": res_bias_full.test_rmse[-1],
+                "max_abs_dual_loss_diff": float(np.max(diff_full)),
+                "max_rel_dual_loss_diff": float(np.max(rel_diff_full)),
+                "mean_epoch_time_sec": float(np.mean(res_bias_full.epoch_times)),
+                "train_rmse_history": res_bias_full.train_rmse,
+                "test_rmse_history": res_bias_full.test_rmse,
+            },
+        },
+    }
+
+    out_json = ROOT_DIR / "report" / "results_practicals_1_2.json"
+    with out_json.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Saved {out_json}")
+    print(json.dumps(summary, indent=2))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
