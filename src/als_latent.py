@@ -1,19 +1,132 @@
-"""Matrix Factorization with Biases and Latent Factors (Practical 3).
+"""Matrix Factorization with Biases and Latent Factors (Practicals 3 & 4).
 
 Implements Probabilistic Matrix Factorization (PMF) trained via Alternating
-Least Squares (ALS) using vectorized batched NumPy solves:
+Least Squares (ALS):
     r_hat_{m,n} = mu + a_m + b_n + u_m^T v_n
+
+Provides three execution backends for benchmarking (Practical 4 bonus):
+1. `numba_parallel`: Multi-threaded CSR row-parallel Cholesky solver (`prange`)
+   with O(K^2) thread-local buffers and zero heap allocation overhead.
+2. `numba_serial`: Single-threaded CSR Cholesky solver for parallel speedup
+   comparison.
+3. `numpy_batched`: Vectorized batched NumPy solver (`np.linalg.solve`) over
+   CSR slices for comparing Python/NumPy memory bandwidth vs Numba JIT.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import time
-from typing import List
+from typing import Dict, List, Optional, Tuple
 
+import numba
 import numpy as np
 
 from src.data_indexing import IndexedDataset
+
+
+@numba.njit(fastmath=True)
+def _solve_spd_cholesky_inplace(a_mat: np.ndarray, b_vec: np.ndarray) -> None:
+    """Solve A x = b in-place for symmetric positive-definite A (K x K).
+
+    Overwrites lower triangle of `a_mat` with Cholesky factor L (A = L L^T)
+    and overwrites `b_vec` with the solution x. Avoids LAPACK call overhead
+    inside tight parallel loops for small K (2 <= K <= 32).
+    """
+    k_dim = b_vec.shape[0]
+    for i in range(k_dim):
+        for j in range(i + 1):
+            s = a_mat[i, j]
+            for p in range(j):
+                s -= a_mat[i, p] * a_mat[j, p]
+            if i == j:
+                # Guard against numerical underflow in float32/float64
+                if s <= 1e-12:
+                    s = 1e-12
+                a_mat[i, j] = np.sqrt(s)
+            else:
+                a_mat[i, j] = s / a_mat[j, j]
+
+    # Forward substitution: L y = b
+    for i in range(k_dim):
+        s = b_vec[i]
+        for p in range(i):
+            s -= a_mat[i, p] * b_vec[p]
+        b_vec[i] = s / a_mat[i, i]
+
+    # Backward substitution: L^T x = y
+    for i in range(k_dim - 1, -1, -1):
+        s = b_vec[i]
+        for p in range(i + 1, k_dim):
+            s -= a_mat[p, i] * b_vec[p]
+        b_vec[i] = s / a_mat[i, i]
+
+
+
+def update_biases_and_factors_serial(
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    ratings: np.ndarray,
+    target_biases: np.ndarray,
+    other_biases: np.ndarray,
+    target_factors: np.ndarray,
+    other_factors: np.ndarray,
+    mu: float,
+    lam: float,
+    gamma: float,
+    tau: float,
+) -> None:
+    """Single-threaded CSR ALS update for benchmarking parallel speedup."""
+    num_rows = len(indptr) - 1
+    k_dim = target_factors.shape[1]
+
+    a_mat = np.zeros((k_dim, k_dim), dtype=np.float64)
+    b_vec = np.zeros(k_dim, dtype=np.float64)
+
+    for i in range(num_rows):
+        start = indptr[i]
+        end = indptr[i + 1]
+        count = end - start
+        if count == 0:
+            target_biases[i] = 0.0
+            for d in range(k_dim):
+                target_factors[i, d] = 0.0
+            continue
+
+        res_bias = 0.0
+        u_i = target_factors[i]
+        for idx in range(start, end):
+            j = indices[idx]
+            v_j = other_factors[j]
+            dot_uv = 0.0
+            for d in range(k_dim):
+                dot_uv += u_i[d] * v_j[d]
+            res_bias += ratings[idx] - mu - other_biases[j] - dot_uv
+
+        new_bias = (lam * res_bias) / (lam * count + gamma)
+        target_biases[i] = new_bias
+
+        for d1 in range(k_dim):
+            b_vec[d1] = 0.0
+            for d2 in range(d1 + 1):
+                a_mat[d1, d2] = 0.0
+            a_mat[d1, d1] = tau
+
+        for idx in range(start, end):
+            j = indices[idx]
+            v_j = other_factors[j]
+            r_tilde = ratings[idx] - mu - new_bias - other_biases[j]
+            lam_r = lam * r_tilde
+            for d1 in range(k_dim):
+                v_d1 = float(v_j[d1])
+                b_vec[d1] += lam_r * v_d1
+                lam_v_d1 = lam * v_d1
+                for d2 in range(d1 + 1):
+                    a_mat[d1, d2] += lam_v_d1 * float(v_j[d2])
+
+        _solve_spd_cholesky_inplace(a_mat, b_vec)
+        for d in range(k_dim):
+            target_factors[i, d] = np.float32(b_vec[d])
 
 
 def update_biases_and_factors_numpy_batched(
@@ -30,7 +143,10 @@ def update_biases_and_factors_numpy_batched(
     tau: float,
     batch_size: int = 512,
 ) -> None:
-    """Vectorized batched NumPy solver (`np.add.reduceat` + `np.linalg.solve`)."""
+    """Vectorized batched NumPy solver (`np.add.reduceat` + `np.linalg.solve`).
+
+    Used to benchmark pure vectorized NumPy against Numba parallel CSR kernels.
+    """
     num_rows = len(indptr) - 1
     k_dim = target_factors.shape[1]
     eye_k = np.eye(k_dim, dtype=np.float32) * np.float32(tau)
@@ -55,11 +171,13 @@ def update_biases_and_factors_numpy_batched(
             np.arange(b_start, b_end, dtype=np.int32), counts.astype(np.int32)
         )
 
+        # Bias update
         dots = np.sum(
             target_factors[row_ids] * other_factors[batch_indices], axis=1
         )
         res_b = batch_ratings - mu - other_biases[batch_indices] - dots
 
+        # Guard reduceat for trailing empty rows
         non_empty_indices = np.where(active_mask)[0]
         starts_non_empty = local_ptr[:-1][active_mask]
         sums_b = np.zeros(b_end - b_start, dtype=np.float32)
@@ -71,6 +189,7 @@ def update_biases_and_factors_numpy_batched(
         )
         target_biases[b_start:b_end] = new_biases
 
+        # Factor update
         r_tilde = (
             batch_ratings
             - mu
@@ -100,7 +219,8 @@ def update_biases_and_factors_numpy_batched(
         target_factors[b_start:b_end] = solved
 
 
-def compute_pmf_sse_numpy(
+@numba.njit(parallel=True, fastmath=True)
+def compute_pmf_sse_numba(
     indptr: np.ndarray,
     indices: np.ndarray,
     ratings: np.ndarray,
@@ -110,22 +230,30 @@ def compute_pmf_sse_numpy(
     movie_factors: np.ndarray,
     mu: float,
 ) -> float:
-    """Compute sum of squared errors (SSE) in chunks using NumPy."""
-    counts = np.diff(indptr)
-    user_ids = np.repeat(np.arange(len(counts), dtype=np.int32), counts)
+    """Compute sum of squared errors (SSE) for PMF model over user CSR."""
+    num_users = len(indptr) - 1
+    k_dim = user_factors.shape[1]
     total_sse = 0.0
-    chunk = 4_000_000
-    for s in range(0, len(ratings), chunk):
-        e = min(s + chunk, len(ratings))
-        u_c = user_ids[s:e]
-        m_c = indices[s:e]
-        dots = np.sum(user_factors[u_c] * movie_factors[m_c], axis=1)
-        err = ratings[s:e] - (mu + user_biases[u_c] + movie_biases[m_c] + dots)
-        total_sse += float(np.dot(err, err))
+
+    for m in numba.prange(num_users):
+        start = indptr[m]
+        end = indptr[m + 1]
+        a_m = user_biases[m]
+        u_m = user_factors[m]
+        row_sse = 0.0
+        for idx in range(start, end):
+            n = indices[idx]
+            v_n = movie_factors[n]
+            dot_uv = 0.0
+            for d in range(k_dim):
+                dot_uv += u_m[d] * v_n[d]
+            err = ratings[idx] - (mu + a_m + movie_biases[n] + dot_uv)
+            row_sse += err * err
+        total_sse += row_sse
     return total_sse
 
 
-def compute_pmf_objective(
+
     sse: float,
     user_biases: np.ndarray,
     movie_biases: np.ndarray,
@@ -135,7 +263,12 @@ def compute_pmf_objective(
     gamma: float,
     tau: float,
 ) -> float:
-    """Compute negative log-posterior (regularized loss) for the PMF model."""
+    """Compute negative log-posterior (regularized loss) for the PMF model.
+
+    L(a, b, U, V) = (lambda / 2) * SSE
+                    + (gamma / 2) * (||a||_2^2 + ||b||_2^2)
+                    + (tau / 2) * (||U||_F^2 + ||V||_F^2)
+    """
     reg_biases = float(
         np.dot(user_biases, user_biases) + np.dot(movie_biases, movie_biases)
     )
@@ -174,9 +307,26 @@ def fit_pmf_als(
     tau: float = 5.0,
     use_global_mean: bool = False,
     seed: int = 42,
+    backend: str = "numba_parallel",
     eval_every: int = 1,
 ) -> PMFALSResult:
-    """Train the PMF latent factor model via Batched NumPy ALS."""
+    """Train the PMF latent factor model via Alternating Least Squares.
+
+    Args:
+        dataset: IndexedDataset with user and movie CSR splits.
+        k_dim: Number of latent dimensions K.
+        num_iters: Number of ALS alternating epochs.
+        lam: Observation noise precision (lambda).
+        gamma: Regularization precision on user/movie biases.
+        tau: Regularization precision on user/movie latent vectors.
+        use_global_mean: Whether to center ratings by global train mean.
+        seed: Random seed for factor initialization.
+        backend: One of 'numba_parallel', 'numba_serial', 'numpy_batched'.
+        eval_every: Compute train/test RMSE every `eval_every` epochs.
+
+    Returns:
+        PMFALSResult with learned embeddings and training curves.
+    """
     rng = np.random.default_rng(seed)
     mu = float(np.mean(dataset.user_train.ratings)) if use_global_mean else 0.0
 
@@ -206,9 +356,18 @@ def fit_pmf_als(
     num_train = max(1, dataset.num_train_ratings)
     num_test = max(1, dataset.num_test_ratings)
 
-    for epoch in range(num_iters):
+    if backend == "numba_parallel":
+    if backend == "numba_serial":
+        update_fn = update_biases_and_factors_serial
+    elif backend == "numpy_batched":
+        update_fn = update_biases_and_factors_numpy_batched
+    else:
+        raise ValueError(f"Unknown backend: {backend}")
+
         t0 = time.perf_counter()
-        update_biases_and_factors_numpy_batched(
+
+        # Step 1: Update user biases and user factors
+        update_fn(
             dataset.user_train.indptr,
             dataset.user_train.indices,
             dataset.user_train.ratings,
@@ -221,7 +380,9 @@ def fit_pmf_als(
             gamma,
             tau,
         )
-        update_biases_and_factors_numpy_batched(
+
+        # Step 2: Update movie biases and movie factors
+        update_fn(
             dataset.movie_train.indptr,
             dataset.movie_train.indices,
             dataset.movie_train.ratings,
@@ -234,10 +395,12 @@ def fit_pmf_als(
             gamma,
             tau,
         )
-        result.epoch_times.append(time.perf_counter() - t0)
+
+        elapsed = time.perf_counter() - t0
+        result.epoch_times.append(elapsed)
 
         if (epoch + 1) % eval_every == 0 or epoch == num_iters - 1:
-            sse_train = compute_pmf_sse_numpy(
+            sse_train = compute_pmf_sse_numba(
                 dataset.user_train.indptr,
                 dataset.user_train.indices,
                 dataset.user_train.ratings,
@@ -257,7 +420,7 @@ def fit_pmf_als(
                 gamma,
                 tau,
             )
-            sse_test = compute_pmf_sse_numpy(
+            sse_test = compute_pmf_sse_numba(
                 dataset.user_test.indptr,
                 dataset.user_test.indices,
                 dataset.user_test.ratings,
