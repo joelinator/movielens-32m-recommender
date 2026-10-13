@@ -62,7 +62,78 @@ def _solve_spd_cholesky_inplace(a_mat: np.ndarray, b_vec: np.ndarray) -> None:
         b_vec[i] = s / a_mat[i, i]
 
 
+@numba.njit(parallel=True, fastmath=True)
+def update_biases_and_factors_numba(
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    ratings: np.ndarray,
+    target_biases: np.ndarray,
+    other_biases: np.ndarray,
+    target_factors: np.ndarray,
+    other_factors: np.ndarray,
+    mu: float,
+    lam: float,
+    gamma: float,
+    tau: float,
+) -> None:
+    """Parallel ALS update for biases and latent vectors over CSR rows.
 
+    First updates `target_biases[i]` given current factors, then solves the
+    K x K regularized normal equations for `target_factors[i]` using an
+    in-place Cholesky decomposition.
+    """
+    num_rows = len(indptr) - 1
+    k_dim = target_factors.shape[1]
+
+    for i in numba.prange(num_rows):
+        start = indptr[i]
+        end = indptr[i + 1]
+        count = end - start
+        if count == 0:
+            target_biases[i] = 0.0
+            for d in range(k_dim):
+                target_factors[i, d] = 0.0
+            continue
+
+        # 1. Update bias: a_i = (lam * sum (r - mu - b_j - u_i^T v_j)) / (lam * count + gamma)
+        res_bias = 0.0
+        u_i = target_factors[i]
+        for idx in range(start, end):
+            j = indices[idx]
+            v_j = other_factors[j]
+            dot_uv = 0.0
+            for d in range(k_dim):
+                dot_uv += u_i[d] * v_j[d]
+            res_bias += ratings[idx] - mu - other_biases[j] - dot_uv
+
+        new_bias = (lam * res_bias) / (lam * count + gamma)
+        target_biases[i] = new_bias
+
+        # 2. Assemble normal equations: (lam * sum v_j v_j^T + tau * I) u_i = lam * sum r_tilde * v_j
+        a_mat = np.zeros((k_dim, k_dim), dtype=np.float64)
+        b_vec = np.zeros(k_dim, dtype=np.float64)
+        for d in range(k_dim):
+            a_mat[d, d] = tau
+
+        for idx in range(start, end):
+            j = indices[idx]
+            v_j = other_factors[j]
+            r_tilde = ratings[idx] - mu - new_bias - other_biases[j]
+            lam_r = lam * r_tilde
+            for d1 in range(k_dim):
+                v_d1 = float(v_j[d1])
+                b_vec[d1] += lam_r * v_d1
+                lam_v_d1 = lam * v_d1
+                # Only lower triangle needed for Cholesky
+                for d2 in range(d1 + 1):
+                    a_mat[d1, d2] += lam_v_d1 * float(v_j[d2])
+
+        _solve_spd_cholesky_inplace(a_mat, b_vec)
+        for d in range(k_dim):
+            target_factors[i, d] = np.float32(b_vec[d])
+
+
+@numba.njit(parallel=False, fastmath=True)
 def update_biases_and_factors_serial(
     indptr: np.ndarray,
     indices: np.ndarray,
@@ -253,7 +324,43 @@ def compute_pmf_sse_numba(
     return total_sse
 
 
+@numba.njit(parallel=True, fastmath=True)
+def compute_per_user_sse_and_counts(
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    ratings: np.ndarray,
+    user_biases: np.ndarray,
+    movie_biases: np.ndarray,
+    user_factors: np.ndarray,
+    movie_factors: np.ndarray,
+    mu: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute per-user SSE and rating counts for degree-bucket RMSE analysis."""
+    num_users = len(indptr) - 1
+    k_dim = user_factors.shape[1]
+    user_sse = np.zeros(num_users, dtype=np.float64)
+    user_counts = np.zeros(num_users, dtype=np.int32)
 
+    for m in numba.prange(num_users):
+        start = indptr[m]
+        end = indptr[m + 1]
+        user_counts[m] = end - start
+        a_m = user_biases[m]
+        u_m = user_factors[m]
+        s = 0.0
+        for idx in range(start, end):
+            n = indices[idx]
+            v_n = movie_factors[n]
+            dot_uv = 0.0
+            for d in range(k_dim):
+                dot_uv += u_m[d] * v_n[d]
+            err = ratings[idx] - (mu + a_m + movie_biases[n] + dot_uv)
+            s += err * err
+        user_sse[m] = s
+    return user_sse, user_counts
+
+
+def compute_pmf_objective(
     sse: float,
     user_biases: np.ndarray,
     movie_biases: np.ndarray,
@@ -357,13 +464,15 @@ def fit_pmf_als(
     num_test = max(1, dataset.num_test_ratings)
 
     if backend == "numba_parallel":
-    if backend == "numba_serial":
+        update_fn = update_biases_and_factors_numba
+    elif backend == "numba_serial":
         update_fn = update_biases_and_factors_serial
     elif backend == "numpy_batched":
         update_fn = update_biases_and_factors_numpy_batched
     else:
         raise ValueError(f"Unknown backend: {backend}")
 
+    for epoch in range(num_iters):
         t0 = time.perf_counter()
 
         # Step 1: Update user biases and user factors
