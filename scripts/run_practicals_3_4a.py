@@ -285,6 +285,147 @@ def main() -> None:
     print(f"Saved {fig4_path}")
 
 
+    # 4. Practical 4 Bonus: Runtime & Parallel Speedup Benchmark
+    # -------------------------------------------------------------------------
+    print("Running Runtime & Parallel Speedup Benchmarks...")
+    bench_k = [2, 4, 8, 10, 16, 20]
+    times_5m_parallel = []
+    times_5m_serial = []
+    times_5m_numpy = []
+    times_32m_parallel = []
+
+    for k_val in bench_k:
+        r_par = fit_pmf_als(
+            ds_small,
+            k_dim=k_val,
+            num_iters=3,
+            backend="numba_parallel",
+            eval_every=10,
+        )
+        t_par = float(np.median(r_par.epoch_times))
+        times_5m_parallel.append(t_par)
+
+        r_ser = fit_pmf_als(
+            ds_small,
+            k_dim=k_val,
+            num_iters=2,
+            backend="numba_serial",
+            eval_every=10,
+        )
+        t_ser = float(np.median(r_ser.epoch_times))
+        times_5m_serial.append(t_ser)
+
+        # Run 1 epoch of Batched NumPy on 5M for K <= 10 (above K=10 outer-product memory explodes)
+        if k_val <= 10:
+            r_np = fit_pmf_als(
+                ds_small,
+                k_dim=k_val,
+                num_iters=1,
+                backend="numpy_batched",
+                eval_every=10,
+            )
+            t_np = float(r_np.epoch_times[0])
+        else:
+            t_np = float("nan")
+        times_5m_numpy.append(t_np)
+
+        # Full 32M parallel epoch time
+        r_32m = fit_pmf_als(
+            ds_full,
+            k_dim=k_val,
+            num_iters=3,
+            backend="numba_parallel",
+            eval_every=10,
+        )
+        t_32m = float(np.median(r_32m.epoch_times))
+        times_32m_parallel.append(t_32m)
+
+        print(
+            f"  K={k_val:2d} | 5M Par={t_par:.3f}s, Ser={t_ser:.3f}s "
+            f"(Speedup={t_ser/t_par:.2f}x), NumPy={t_np:.2f}s | 32M Par={t_32m:.3f}s"
+        )
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.75))
+    valid_np_k = [k for k, t in zip(bench_k, times_5m_numpy) if not np.isnan(t)]
+    valid_np_t = [t for t in times_5m_numpy if not np.isnan(t)]
+
+    ax1.plot(
+        valid_np_k,
+        valid_np_t,
+        color="#d95f02",
+        marker="^",
+        markersize=4.5,
+        linewidth=1.5,
+        label="5M: Vectorized Batched NumPy",
+    )
+    ax1.plot(
+        bench_k,
+        times_5m_serial,
+        color="#7570b3",
+        marker="s",
+        markersize=4.5,
+        linewidth=1.5,
+        label="5M: Numba CSR Serial (1 Thread)",
+    )
+    ax1.plot(
+        bench_k,
+        times_5m_parallel,
+        color="#1b9e77",
+        marker="o",
+        markersize=4.5,
+        linewidth=1.6,
+        label="5M: Numba CSR Parallel (12 Threads)",
+    )
+    ax1.plot(
+        bench_k,
+        times_32m_parallel,
+        color="#1f4e78",
+        marker="D",
+        markersize=4.5,
+        linestyle="--",
+        linewidth=1.6,
+        label="32M: Numba CSR Parallel (12 Threads)",
+    )
+    ax1.set_yscale("log")
+    ax1.set_xlabel("(a) Latent Dimension $K$")
+    ax1.set_ylabel("Wall-Clock Time per Epoch (s, log scale)")
+    ax1.legend(loc="upper left", fontsize=7.2, frameon=True)
+
+    speedup_vs_serial = np.array(times_5m_serial) / np.array(times_5m_parallel)
+    speedup_vs_numpy = np.array(valid_np_t) / np.array(
+        times_5m_parallel[: len(valid_np_t)]
+    )
+
+    ax2.plot(
+        valid_np_k,
+        speedup_vs_numpy,
+        color="#d95f02",
+        marker="^",
+        markersize=4.5,
+        linewidth=1.6,
+        label="Speedup vs. Batched NumPy",
+    )
+    ax2.plot(
+        bench_k,
+        speedup_vs_serial,
+        color="#1f4e78",
+        marker="o",
+        markersize=4.5,
+        linewidth=1.6,
+        label="Multi-Core Speedup (12T vs. 1T Numba)",
+    )
+    ax2.set_xlabel("(b) Latent Dimension $K$")
+    ax2.set_ylabel("Speedup Factor ($\\times$)")
+    ax2.legend(loc="center right", frameon=True)
+
+    fig.tight_layout()
+    fig6_path = figures_dir / "fig6_runtime_benchmark.pdf"
+    fig.savefig(fig6_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {fig6_path}")
+
+    summary = {
+
 
 if __name__ == '__main__':
     main()
