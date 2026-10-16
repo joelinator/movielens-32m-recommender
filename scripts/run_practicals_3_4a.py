@@ -284,7 +284,222 @@ def main() -> None:
     plt.close(fig)
     print(f"Saved {fig4_path}")
 
+    # -------------------------------------------------------------------------
+    # 3. Practical 4A: Latent Dimension K Scaling & Overfitting Diagnostics
+    # -------------------------------------------------------------------------
+    print("Running Latent Dimension K Sweep on MovieLens-5M and MovieLens-32M...")
+    k_list_5m = [0, 2, 4, 8, 10, 16, 20, 32]
+    k_5m_tuned_train, k_5m_tuned_test = [], []
+    k_5m_weak_train, k_5m_weak_test = [], []
 
+    # K=0 is Bias-Only ALS
+    bias_5m = fit_bias_als(
+        ds_small,
+        num_iters=15,
+        lam=1.0,
+        gamma=0.05,
+        use_global_mean=True,
+        verify_dual_views=False,
+    )
+    k_5m_tuned_train.append(bias_5m.train_rmse[-1])
+    k_5m_tuned_test.append(bias_5m.test_rmse[-1])
+    k_5m_weak_train.append(bias_5m.train_rmse[-1])
+    k_5m_weak_test.append(bias_5m.test_rmse[-1])
+
+    models_5m_for_buckets = {}
+    for k_val in k_list_5m[1:]:
+        res_tuned = fit_pmf_als(
+            ds_small,
+            k_dim=k_val,
+            num_iters=15,
+            lam=1.0,
+            gamma=0.05,
+            tau=5.0,
+            use_global_mean=True,
+            seed=42,
+            eval_every=15,
+        )
+        res_weak = fit_pmf_als(
+            ds_small,
+            k_dim=k_val,
+            num_iters=15,
+            lam=1.0,
+            gamma=0.05,
+            tau=1.0,
+            use_global_mean=True,
+            seed=42,
+            eval_every=15,
+        )
+        k_5m_tuned_train.append(res_tuned.train_rmse[-1])
+        k_5m_tuned_test.append(res_tuned.test_rmse[-1])
+        k_5m_weak_train.append(res_weak.train_rmse[-1])
+        k_5m_weak_test.append(res_weak.test_rmse[-1])
+        if k_val in (10, 20):
+            models_5m_for_buckets[f"K{k_val}_tuned"] = res_tuned
+            models_5m_for_buckets[f"K{k_val}_weak"] = res_weak
+        print(
+            f"  [5M] K={k_val:2d} | Tuned(tau=5) Test={res_tuned.test_rmse[-1]:.4f} "
+            f"| Weak(tau=1) Test={res_weak.test_rmse[-1]:.4f}"
+        )
+
+    # Also run K in {0, 2, 4, 8, 10, 16, 20} on full MovieLens-32M
+    k_list_32m = [0, 2, 4, 8, 10, 16, 20]
+    k_32m_train, k_32m_test = [], []
+    bias_32m = fit_bias_als(
+        ds_full,
+        num_iters=15,
+        lam=1.0,
+        gamma=0.05,
+        use_global_mean=True,
+        verify_dual_views=False,
+    )
+    k_32m_train.append(bias_32m.train_rmse[-1])
+    k_32m_test.append(bias_32m.test_rmse[-1])
+
+    models_32m_for_buckets = {}
+    for k_val in k_list_32m[1:]:
+        res_32m = fit_pmf_als(
+            ds_full,
+            k_dim=k_val,
+            num_iters=15,
+            lam=1.0,
+            gamma=0.05,
+            tau=7.0,
+            use_global_mean=True,
+            seed=42,
+            eval_every=15,
+        )
+        k_32m_train.append(res_32m.train_rmse[-1])
+        k_32m_test.append(res_32m.test_rmse[-1])
+        if k_val in (10, 20):
+            models_32m_for_buckets[f"K{k_val}_tuned"] = res_32m
+        print(
+            f"  [32M] K={k_val:2d} | Train={res_32m.train_rmse[-1]:.4f} "
+            f"| Test={res_32m.test_rmse[-1]:.4f} "
+            f"| MeanEpoch={np.mean(res_32m.epoch_times):.2f}s"
+        )
+
+    # Evaluate degree-stratified Test RMSE for K=10 vs K=20 on 5M (tau=1 and tau=5)
+    user_train_deg_5m = ds_small.user_train.row_degrees()
+    bucket_edges = [0, 20, 40, 80, 160, 320, 100000]
+    bucket_labels = ["<20", "20-39", "40-79", "80-159", "160-319", "320+"]
+    bucket_rmse = {}
+
+    for name, model in models_5m_for_buckets.items():
+        u_sse, u_cnt = compute_per_user_sse_and_counts(
+            ds_small.user_test.indptr,
+            ds_small.user_test.indices,
+            ds_small.user_test.ratings,
+            model.user_biases,
+            model.movie_biases,
+            model.user_factors,
+            model.movie_factors,
+            model.mu,
+        )
+        rmses = []
+        for b_idx in range(len(bucket_labels)):
+            lo, hi = bucket_edges[b_idx], bucket_edges[b_idx + 1]
+            mask = (user_train_deg_5m >= lo) & (user_train_deg_5m < hi)
+            tot_sse = float(np.sum(u_sse[mask]))
+            tot_cnt = int(np.sum(u_cnt[mask]))
+            rmses.append(float(np.sqrt(tot_sse / max(1, tot_cnt))))
+        bucket_rmse[name] = rmses
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.75))
+    ax1.plot(
+        k_list_32m,
+        k_32m_test,
+        color="#1f4e78",
+        marker="o",
+        markersize=4,
+        linewidth=1.6,
+        label=r"32M Test ($\tau=7$)",
+    )
+    ax1.plot(
+        k_list_32m,
+        k_32m_train,
+        color="#1f4e78",
+        marker="o",
+        markersize=3.5,
+        linestyle="--",
+        linewidth=1.2,
+        label=r"32M Train ($\tau=7$)",
+    )
+    ax1.plot(
+        k_list_5m,
+        k_5m_tuned_test,
+        color="#1b9e77",
+        marker="s",
+        markersize=4,
+        linewidth=1.5,
+        label=r"5M Test ($\tau=5$)",
+    )
+    ax1.plot(
+        k_list_5m,
+        k_5m_weak_test,
+        color="#d95f02",
+        marker="^",
+        markersize=4,
+        linestyle="-.",
+        linewidth=1.5,
+        label=r"5M Test ($\tau=1$, Overfit)",
+    )
+    ax1.set_xlabel("(a) Latent Dimension $K$")
+    ax1.set_ylabel("Root Mean Squared Error (Stars)")
+    ax1.legend(loc="upper right", fontsize=7.5, frameon=True)
+
+    x_b = np.arange(len(bucket_labels))
+    ax2.plot(
+        x_b,
+        bucket_rmse["K10_weak"],
+        color="#1f4e78",
+        marker="o",
+        markersize=4,
+        linestyle="--",
+        linewidth=1.4,
+        label=r"$K=10, \tau=1$ (Weak Reg.)",
+    )
+    ax2.plot(
+        x_b,
+        bucket_rmse["K20_weak"],
+        color="#d95f02",
+        marker="^",
+        markersize=4,
+        linestyle="--",
+        linewidth=1.4,
+        label=r"$K=20, \tau=1$ (Severe Overfit)",
+    )
+    ax2.plot(
+        x_b,
+        bucket_rmse["K10_tuned"],
+        color="#1b9e77",
+        marker="s",
+        markersize=4,
+        linewidth=1.5,
+        label=r"$K=10, \tau=5$ (Tuned)",
+    )
+    ax2.plot(
+        x_b,
+        bucket_rmse["K20_tuned"],
+        color="#7570b3",
+        marker="D",
+        markersize=4,
+        linewidth=1.5,
+        label=r"$K=20, \tau=5$ (Tuned)",
+    )
+    ax2.set_xticks(x_b)
+    ax2.set_xticklabels(bucket_labels, rotation=20)
+    ax2.set_xlabel(r"(b) User Train Degree $|\Omega_m^{\mathrm{train}}|$")
+    ax2.set_ylabel("Test RMSE by Activity Bucket")
+    ax2.legend(loc="upper right", fontsize=7.5, frameon=True)
+
+    fig.tight_layout()
+    fig5_path = figures_dir / "fig5_k_scaling_and_overfitting.pdf"
+    fig.savefig(fig5_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {fig5_path}")
+
+    # -------------------------------------------------------------------------
     # 4. Practical 4 Bonus: Runtime & Parallel Speedup Benchmark
     # -------------------------------------------------------------------------
     print("Running Runtime & Parallel Speedup Benchmarks...")
@@ -425,7 +640,56 @@ def main() -> None:
     print(f"Saved {fig6_path}")
 
     summary = {
+        "practical_3": {
+            "small_5m_k10": {
+                "initial_loss": pmf_small_k10.train_loss[0],
+                "final_loss": pmf_small_k10.train_loss[-1],
+                "initial_train_rmse": pmf_small_k10.train_rmse[0],
+                "final_train_rmse": pmf_small_k10.train_rmse[-1],
+                "initial_test_rmse": pmf_small_k10.test_rmse[0],
+                "final_test_rmse": pmf_small_k10.test_rmse[-1],
+                "mean_epoch_time_sec": float(np.mean(pmf_small_k10.epoch_times)),
+            },
+            "full_32m_k10": {
+                "initial_loss": pmf_full_k10.train_loss[0],
+                "final_loss": pmf_full_k10.train_loss[-1],
+                "initial_train_rmse": pmf_full_k10.train_rmse[0],
+                "final_train_rmse": pmf_full_k10.train_rmse[-1],
+                "initial_test_rmse": pmf_full_k10.test_rmse[0],
+                "final_test_rmse": pmf_full_k10.test_rmse[-1],
+                "mean_epoch_time_sec": float(np.mean(pmf_full_k10.epoch_times)),
+            },
+        },
+        "practical_4a": {
+            "tau_grid_5m": tau_grid,
+            "gamma_grid_5m": gamma_grid,
+            "hp_results_5m": hp_results,
+            "tau_grid_32m": tau_grid_32m,
+            "hp_32m_train": hp_32m_train,
+            "hp_32m_test": hp_32m_test,
+            "k_list_5m": k_list_5m,
+            "k_5m_tuned_train": k_5m_tuned_train,
+            "k_5m_tuned_test": k_5m_tuned_test,
+            "k_5m_weak_train": k_5m_weak_train,
+            "k_5m_weak_test": k_5m_weak_test,
+            "k_list_32m": k_list_32m,
+            "k_32m_train": k_32m_train,
+            "k_32m_test": k_32m_test,
+            "bucket_labels": bucket_labels,
+            "bucket_rmse": bucket_rmse,
+            "bench_k": bench_k,
+            "times_5m_parallel": times_5m_parallel,
+            "times_5m_serial": times_5m_serial,
+            "times_5m_numpy": times_5m_numpy,
+            "times_32m_parallel": times_32m_parallel,
+        },
+    }
+
+    out_json = ROOT_DIR / "report" / "results_practicals_3_4a.json"
+    with out_json.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Saved {out_json}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
