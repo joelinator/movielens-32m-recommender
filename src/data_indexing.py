@@ -391,3 +391,91 @@ def load_full_csr_dataset(pkl_path: str) -> Tuple[CSRMatrix, CSRMatrix, Dict[str
     return by_user, by_movie, meta
 
 
+@dataclass
+class MovieMetadata:
+    """Parsed MovieLens movie titles and genre CSR structures."""
+
+    movie_titles: List[str]  # length num_movies, indexed by internal movie_id
+    genre_names: List[str]  # sorted list of unique canonical genre names
+    genre_to_id: Dict[str, int]
+    movie_genre_offsets: np.ndarray  # int32 (num_movies + 1,)
+    movie_genre_indices: np.ndarray  # int32 (total_movie_genre_links,)
+    genre_movie_offsets: np.ndarray  # int32 (num_genres + 1,)
+    genre_movie_indices: np.ndarray  # int32 (total_movie_genre_links,)
+
+
+def parse_movies_metadata(
+    movies_csv_path: str,
+    movies_index: Dict[str, int],
+) -> MovieMetadata:
+    """Parse movies.csv and build dual CSR mappings between movies and genres."""
+    num_movies = len(movies_index)
+    movie_titles = ["Unknown Title"] * num_movies
+    raw_movie_genres: List[List[str]] = [[] for _ in range(num_movies)]
+    genre_set = set()
+
+    with open(movies_csv_path, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        next(reader, None)  # Skip header
+        for row in reader:
+            if len(row) < 3:
+                continue
+            m_str, title, genres_str = row[0], row[1], row[2]
+            m_id = movies_index.get(m_str)
+            if m_id is None:
+                continue
+            movie_titles[m_id] = title
+            if genres_str and genres_str != "(no genres listed)":
+                g_list = [g.strip() for g in genres_str.split("|") if g.strip()]
+            else:
+                g_list = ["(no genres listed)"]
+            raw_movie_genres[m_id] = g_list
+            genre_set.update(g_list)
+
+    # Ensure every internal movie has at least one genre tag
+    for m_id in range(num_movies):
+        if not raw_movie_genres[m_id]:
+            raw_movie_genres[m_id] = ["(no genres listed)"]
+            genre_set.add("(no genres listed)")
+
+    genre_names = sorted(genre_set)
+    genre_to_id = {g: i for i, g in enumerate(genre_names)}
+    num_genres = len(genre_names)
+
+    # Build movie -> genres CSR
+    movie_genre_offsets = np.zeros(num_movies + 1, dtype=np.int32)
+    flat_movie_genres: List[int] = []
+    genre_counts = np.zeros(num_genres, dtype=np.int32)
+
+    for m_id in range(num_movies):
+        g_ids = sorted(genre_to_id[g] for g in raw_movie_genres[m_id])
+        flat_movie_genres.extend(g_ids)
+        movie_genre_offsets[m_id + 1] = len(flat_movie_genres)
+        for g_id in g_ids:
+            genre_counts[g_id] += 1
+
+    movie_genre_indices = np.array(flat_movie_genres, dtype=np.int32)
+
+    # Build genre -> movies CSR
+    genre_movie_offsets = np.zeros(num_genres + 1, dtype=np.int32)
+    np.cumsum(genre_counts, out=genre_movie_offsets[1:])
+    genre_movie_indices = np.zeros(len(flat_movie_genres), dtype=np.int32)
+    cursors = genre_movie_offsets[:-1].copy()
+
+    for m_id in range(num_movies):
+        start = movie_genre_offsets[m_id]
+        end = movie_genre_offsets[m_id + 1]
+        for idx in range(start, end):
+            g_id = movie_genre_indices[idx]
+            genre_movie_indices[cursors[g_id]] = m_id
+            cursors[g_id] += 1
+
+    return MovieMetadata(
+        movie_titles=movie_titles,
+        genre_names=genre_names,
+        genre_to_id=genre_to_id,
+        movie_genre_offsets=movie_genre_offsets,
+        movie_genre_indices=movie_genre_indices,
+        genre_movie_offsets=genre_movie_offsets,
+        genre_movie_indices=genre_movie_indices,
+    )
