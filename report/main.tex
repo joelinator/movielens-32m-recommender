@@ -1,41 +1,23 @@
-%%%%%%%% ICML 2023 EXAMPLE LATEX SUBMISSION FILE %%%%%%%%%%%%%%%%%
+%%%%%%%% ICML 2023 REPORT: MOVIELENS-32M RECOMMENDER SYSTEM %%%%%%%%%%%%
 
 \documentclass{article}
 
-% Recommended, but optional, packages for figures and better typesetting:
 \usepackage{microtype}
 \usepackage{graphicx}
 \usepackage{subfigure}
-\usepackage{booktabs} % for professional tables
-
-% hyperref makes hyperlinks in the resulting PDF.
-% If your build breaks (sometimes temporarily if a hyperlink spans a page)
-% please comment out the following usepackage line and replace
-% \usepackage{icml2023} with \usepackage[nohyperref]{icml2023} above.
+\usepackage{booktabs}
 \usepackage{hyperref}
 
-
-% Attempt to make hyperref and algorithmic work together better:
 \newcommand{\theHalgorithm}{\arabic{algorithm}}
 
-% Use the following line for the initial blind version submitted for review:
-% \usepackage{icml2023}
-
-% If accepted, instead use the following line for the camera-ready submission:
 \usepackage[accepted]{icml2023}
 
-% For theorems and such
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{amsthm}
-
-% if you use cleveref..
 \usepackage[capitalize,noabbrev]{cleveref}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% THEOREMS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[section]
 \newtheorem{proposition}[theorem]{Proposition}
@@ -44,598 +26,148 @@
 \theoremstyle{definition}
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{assumption}[theorem]{Assumption}
-\theoremstyle{remark}
 \newtheorem{remark}[theorem]{Remark}
 
-% Todonotes is useful during development; simply uncomment the next line
-%    and comment out the line below the next line to turn off comments
-%\usepackage[disable,textsize=tiny]{todonotes}
-\usepackage[textsize=tiny]{todonotes}
-
-
-% The \icmltitle you define below is probably too long as a header.
-% Therefore, a short form for the running title is supplied here:
-\icmltitlerunning{Submission and Formatting Instructions for ICML 2023}
+\icmltitlerunning{Matrix Factorization and Genre-Based Recommender Systems on MovieLens-32M}
 
 \begin{document}
 
 \twocolumn[
-\icmltitle{Your Amazing Applied Machine Learning at Scale Project!}
-
-% It is OKAY to include author information, even for blind
-% submissions: the style file will automatically remove it for you
-% unless you've provided the [accepted] option to the icml2023
-% package.
-
-% List of affiliations: The first argument should be a (short)
-% identifier you will use later to specify author affiliations
-% Academic affiliations should list Department, University, City, Region, Country
-% Industry affiliations should list Company, City, Region, Country
-
-% You can specify symbols, otherwise they are numbered in order.
-% Ideally, you should not use this facility. Affiliations will be numbered
-% in order of appearance and this is the preferred way.
-% \icmlsetsymbol{equal}{*}
+\icmltitle{Matrix Factorization and Genre-Based Recommender Systems on MovieLens-32M}
 
 \begin{icmlauthorlist}
-\icmlauthor{Ulrich Paquet}{aims}
+\icmlauthor{Joel Gedeon Asa Mapa}{aims}
 \end{icmlauthorlist}
 
 \icmlaffiliation{aims}{African Institute for Mathematical Sciences (AIMS) South Africa, 6 Melrose Road, Muizenberg 7975, Cape Town, South Africa}
-\icmlcorrespondingauthor{Ulrich Paquet}{ulrich@aims.ac.za}
+\icmlcorrespondingauthor{Joel Gedeon Asa Mapa}{joel@aims.ac.za}
 
-% You may provide any keywords that you
-% find helpful for describing your paper; these are used to populate
-% the "keywords" metadata in the PDF but will not be shown in the document
-\icmlkeywords{Machine Learning, ICML}
+\icmlkeywords{Recommender Systems, Matrix Factorization, Alternating Least Squares, MovieLens 32M, Cold-Start Recommendation}
 
 \vskip 0.3in
 ]
 
-% this must go after the closing bracket ] following \twocolumn[ ...
-
-% This command actually creates the footnote in the first column
-% listing the affiliations and the copyright notice.
-% The command takes one argument, which is text to display at the start of the footnote.
-% The \icmlEqualContribution command is standard text for equal contribution.
-% Remove it (just {}) if you do not need this facility.
-
-%\printAffiliationsAndNotice{}  % leave blank if no need to mention equal contribution
-\printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
+\printAffiliationsAndNotice{}
 
 \begin{abstract}
-This document provides a basic paper template and submission guidelines.
-Abstracts must be a single paragraph, ideally between 4--6 sentences long.
-Gross violations will trigger corrections at the camera-ready phase.
-
-[Sentence pointing to GITHUB LINK of code!]
+Building a recommender system for tens of millions of ratings requires both a solid statistical model and fast data structures. In this paper, we build and study matrix factorization models trained with Alternating Least Squares (ALS) on the full MovieLens-32M dataset ($32{,}000{,}204$ ratings from $200{,}948$ users and $84{,}432$ movies), as well as a smaller $5$-million-rating subset. To store the ratings efficiently in memory, we use two Compressed Sparse Row (CSR) matrices: one indexed by user and one indexed by movie. This setup uses about $513$~MB of RAM and allows us to look up all ratings for any user or movie in constant time. By parallelizing the ALS updates across CPU threads and solving the small linear systems in-place with Cholesky decomposition, our training loop runs nearly $70$ times faster than batched array solvers. We begin by exploring the rating distribution and power-law behavior of users and movies. Next, we compare a simple bias-only model against full matrix factorization with user and movie trait vectors, showing how regularization and the number of latent dimensions $K$ affect test error and overfitting. We also visualize 2D movie embeddings, generate personalized recommendations for a new user who likes \emph{The Lord of the Rings}, and identify the most and least polarizing movies using vector lengths. Finally, we extend the model by adding movie genre information into the prior distribution of movie vectors, which noticeably improves predictions for new and rarely rated movies. Our source code is publicly available at \url{https://github.com/joelinator/movielens-32m-recommender}.
 \end{abstract}
 
-\section{Electronic Submission}
-\label{submission}
+\section{Introduction}
+\label{sec:introduction}
 
-Submission to ICML 2023 will be entirely electronic, via a web site
-(not email). Information about the submission process and \LaTeX\ templates
-are available on the conference web site at:
-\begin{center}
-\textbf{\texttt{http://icml.cc/}}
-\end{center}
+Online platforms such as streaming services and online stores rely on recommender systems to help users find items they might enjoy among tens of thousands of choices \cite{koren2009matrix,harper2015movielens}. One of the most effective approaches to this problem is collaborative filtering, which predicts what a user will like based on past ratings from many users, without needing detailed descriptions of the items themselves.
 
-The guidelines below will be enforced for initial submissions and
-camera-ready copies. Here is a brief summary:
+When working with large datasets like MovieLens-32M, which has over $32$ million ratings across $200{,}948$ users and $84{,}432$ movies, storing the ratings in a standard two-dimensional table is not practical. A full table of size $200{,}948 \times 84{,}432$ using 32-bit floats would take $67.8$~GB of memory, even though $99.81\%$ of the entries are empty because most users only rate a small fraction of the catalog.
+
+Matrix factorization handles this sparsity by representing each user $m$ and each movie $n$ with a short vector of $K$ numbers, $u_m \in \mathbb{R}^K$ and $v_n \in \mathbb{R}^K$, called latent trait vectors \cite{mnih2007probabilistic,koren2009matrix}. A rating is then predicted as the dot product $u_m^\top v_n$ plus baseline user and movie biases. To learn these parameters from observed ratings, two main algorithms are commonly used: Stochastic Gradient Descent (SGD) and Alternating Least Squares (ALS) \cite{zhou2008large}. ALS is especially attractive for large datasets for three reasons:
+\begin{enumerate}
+    \item It does not require tuning a learning rate, because each update step has an exact closed-form formula.
+    \item The regularized loss function is guaranteed to decrease (or stay the same) at every single step.
+    \item When all movie vectors are held fixed, each user vector can be updated independently of all other users. Likewise, when user vectors are fixed, all movie vectors can be updated in parallel across CPU cores.
+\end{enumerate}
+
+\subsection{Problem Statement and Structure of the Paper}
+
+Our goal is to predict unseen movie ratings accurately at scale while also understanding what the model learns and where it struggles. Following a clear separation between data exploration, modeling, and experimental evaluation, the rest of this paper is organized as follows:
+\begin{enumerate}
+    \item \textbf{Data Representation and Exploration (\cref{sec:data_topology}):} We show how to store $32$ million ratings compactly in two CSR matrices ($\mathcal{S}_{\text{user}}$ and $\mathcal{S}_{\text{movie}}$) so that both user updates and movie updates run in constant lookup time, and we analyze the rating histogram and user/movie power-law distributions.
+    \item \textbf{Models and ALS Optimization (\cref{sec:bias_model}):} We formulate all three of our models and derive their Alternating Least Squares (ALS) update steps in one place: (i) the baseline bias-only model (\cref{sec:bias_model_sub}), (ii) the matrix factorization model with user and movie trait vectors $U$ and $V$ (\cref{sec:latent_als}), and (iii) the genre-regularized matrix factorization model with altered loss function and three-step ALS updates (\cref{sec:genre_model}), together with our parallel in-place Cholesky solver (\cref{sec:fast_cholesky}).
+    \item \textbf{Experimental Results (\cref{sec:experiments}):} We present a comprehensive evaluation across both MovieLens-5M and the full MovieLens-32M dataset, including our train/test split, bias-only and matrix factorization RMSE and monotonic loss curves, choice of training iterations, hyperparameter tuning ($\lambda, \gamma, \tau$), choice of best latent dimension $K$ and diminishing returns, runtime speedups on all $32$ million ratings, 2D movie and genre embeddings, \emph{Lord of the Rings} dummy-user recommendations, and most/least polarizing movies.
+\end{enumerate}
+
+\section{Data Representation and Exploratory Analysis}
+\label{sec:data_topology}
+
+\subsection{Dual Sparse Matrix Structure}
+Let $M$ be the number of users and $N$ be the number of movies. The dataset consists of observed ratings $r_{m,n} \in \{0.5, 1.0, \dots, 5.0\}$ for user--movie pairs $(m,n) \in \Omega$, where $\Omega$ is the set of all observed interactions. For each user $m$, we write $\Omega_m = \{n : (m,n) \in \Omega\}$ for the set of movies rated by user $m$. Similarly, for each movie $n$, we write $\Omega^n = \{m : (m,n) \in \Omega\}$ for the set of users who rated movie $n$. The total number of ratings is $|\Omega| = \sum_{m=1}^M |\Omega_m| = \sum_{n=1}^N |\Omega^n|$.
+
+During ALS training, updating user parameters requires looping over all movies rated by each user ($\Omega_m$), while updating movie parameters requires looping over all users who rated each movie ($\Omega^n$). If we only stored the data grouped by user, updating the movies would require either scanning the entire dataset repeatedly or jumping randomly in memory. Using Python lists of lists or dictionaries also uses too much memory and slows down CPU loops.
+
+To make both half-steps fast, we store the ratings in two Compressed Sparse Row (CSR) structures:
 \begin{itemize}
-\item Submissions must be in PDF\@. 
-\item \textbf{New to this year}: If your paper has appendices, submit the appendix together with the main body and the references \textbf{as a single file}. Reviewers will not look for appendices as a separate PDF file. So if you submit such an extra file, reviewers will very likely miss it.
-\item Page limit: The main body of the paper has to be fitted to 8 pages, excluding references and appendices; the space for the latter two is not limited. For the final version of the paper, authors can add one extra page to the main body.
-\item \textbf{Do not include author information or acknowledgements} in your
-    initial submission.
-\item Your paper should be in \textbf{10 point Times font}.
-\item Make sure your PDF file only uses Type-1 fonts.
-\item Place figure captions \emph{under} the figure (and omit titles from inside
-    the graphic file itself). Place table captions \emph{over} the table.
-\item References must include page numbers whenever possible and be as complete
-    as possible. Place multiple citations in chronological order.
-\item Do not alter the style template; in particular, do not compress the paper
-    format by reducing the vertical spaces.
-\item Keep your abstract brief and self-contained, one paragraph and roughly
-    4--6 sentences. Gross violations will require correction at the
-    camera-ready phase. The title should have content words capitalized.
+    \item \textbf{User-Indexed CSR Matrix ($\mathcal{S}_{\text{user}}$):} Uses three flat arrays: an offset array $p^{(u)}$ of length $M+1$, a movie-index array of length $|\Omega|$, and a rating array of length $|\Omega|$. For any user $m$, their rated movie IDs and ratings sit side-by-side in memory between indices $p^{(u)}_m$ and $p^{(u)}_{m+1}$.
+    \item \textbf{Movie-Indexed CSR Matrix ($\mathcal{S}_{\text{movie}}$):} Uses the same layout transposed by movie: an offset array $p^{(v)}$ of length $N+1$, a user-index array of length $|\Omega|$, and a rating array of length $|\Omega|$. For any movie $n$, all users who rated it sit contiguously between indices $p^{(v)}_n$ and $p^{(v)}_{n+1}$.
 \end{itemize}
-
-\subsection{Submitting Papers}
-
-\textbf{Paper Deadline:} The deadline for paper submission that is
-advertised on the conference website is strict. If your full,
-anonymized, submission does not reach us on time, it will not be
-considered for publication. 
-
-\textbf{Anonymous Submission:} ICML uses double-blind review: no identifying
-author information may appear on the title page or in the paper
-itself. \cref{author info} gives further details.
-
-\textbf{Simultaneous Submission:} ICML will not accept any paper which,
-at the time of submission, is under review for another conference or
-has already been published. This policy also applies to papers that
-overlap substantially in technical content with conference papers
-under review or previously published. ICML submissions must not be
-submitted to other conferences and journals during ICML's review
-period.
-%Authors may submit to ICML substantially different versions of journal papers
-%that are currently under review by the journal, but not yet accepted
-%at the time of submission.
-Informal publications, such as technical
-reports or papers in workshop proceedings which do not appear in
-print, do not fall under these restrictions.
-
-\medskip
-
-Authors must provide their manuscripts in \textbf{PDF} format.
-Furthermore, please make sure that files contain only embedded Type-1 fonts
-(e.g.,~using the program \texttt{pdffonts} in linux or using
-File/DocumentProperties/Fonts in Acrobat). Other fonts (like Type-3)
-might come from graphics files imported into the document.
-
-Authors using \textbf{Word} must convert their document to PDF\@. Most
-of the latest versions of Word have the facility to do this
-automatically. Submissions will not be accepted in Word format or any
-format other than PDF\@. Really. We're not joking. Don't send Word.
-
-Those who use \textbf{\LaTeX} should avoid including Type-3 fonts.
-Those using \texttt{latex} and \texttt{dvips} may need the following
-two commands:
-
-{\footnotesize
-\begin{verbatim}
-dvips -Ppdf -tletter -G0 -o paper.ps paper.dvi
-ps2pdf paper.ps
-\end{verbatim}}
-It is a zero following the ``-G'', which tells dvips to use
-the config.pdf file. Newer \TeX\ distributions don't always need this
-option.
-
-Using \texttt{pdflatex} rather than \texttt{latex}, often gives better
-results. This program avoids the Type-3 font problem, and supports more
-advanced features in the \texttt{microtype} package.
-
-\textbf{Graphics files} should be a reasonable size, and included from
-an appropriate format. Use vector formats (.eps/.pdf) for plots,
-lossless bitmap formats (.png) for raster graphics with sharp lines, and
-jpeg for photo-like images.
-
-The style file uses the \texttt{hyperref} package to make clickable
-links in documents. If this causes problems for you, add
-\texttt{nohyperref} as one of the options to the \texttt{icml2023}
-usepackage statement.
-
-
-\subsection{Submitting Final Camera-Ready Copy}
-
-The final versions of papers accepted for publication should follow the
-same format and naming convention as initial submissions, except that
-author information (names and affiliations) should be given. See
-\cref{final author} for formatting instructions.
-
-The footnote, ``Preliminary work. Under review by the International
-Conference on Machine Learning (ICML). Do not distribute.'' must be
-modified to ``\textit{Proceedings of the
-$\mathit{40}^{th}$ International Conference on Machine Learning},
-Honolulu, Hawaii, USA, PMLR 202, 2023.
-Copyright 2023 by the author(s).''
-
-For those using the \textbf{\LaTeX} style file, this change (and others) is
-handled automatically by simply changing
-$\mathtt{\backslash usepackage\{icml2023\}}$ to
-$$\mathtt{\backslash usepackage[accepted]\{icml2023\}}$$
-Authors using \textbf{Word} must edit the
-footnote on the first page of the document themselves.
-
-Camera-ready copies should have the title of the paper as running head
-on each page except the first one. The running title consists of a
-single line centered above a horizontal rule which is $1$~point thick.
-The running head should be centered, bold and in $9$~point type. The
-rule should be $10$~points above the main text. For those using the
-\textbf{\LaTeX} style file, the original title is automatically set as running
-head using the \texttt{fancyhdr} package which is included in the ICML
-2023 style file package. In case that the original title exceeds the
-size restrictions, a shorter form can be supplied by using
-
-\verb|\icmltitlerunning{...}|
-
-just before $\mathtt{\backslash begin\{document\}}$.
-Authors using \textbf{Word} must edit the header of the document themselves.
-
-\section{Format of the Paper}
-
-All submissions must follow the specified format.
-
-\subsection{Dimensions}
-
-
-
-
-The text of the paper should be formatted in two columns, with an
-overall width of 6.75~inches, height of 9.0~inches, and 0.25~inches
-between the columns. The left margin should be 0.75~inches and the top
-margin 1.0~inch (2.54~cm). The right and bottom margins will depend on
-whether you print on US letter or A4 paper, but all final versions
-must be produced for US letter size.
-Do not write anything on the margins.
-
-The paper body should be set in 10~point type with a vertical spacing
-of 11~points. Please use Times typeface throughout the text.
-
-\subsection{Title}
-
-The paper title should be set in 14~point bold type and centered
-between two horizontal rules that are 1~point thick, with 1.0~inch
-between the top rule and the top edge of the page. Capitalize the
-first letter of content words and put the rest of the title in lower
-case.
-
-\subsection{Author Information for Submission}
-\label{author info}
-
-ICML uses double-blind review, so author information must not appear. If
-you are using \LaTeX\/ and the \texttt{icml2023.sty} file, use
-\verb+\icmlauthor{...}+ to specify authors and \verb+\icmlaffiliation{...}+ to specify affiliations. (Read the TeX code used to produce this document for an example usage.) The author information
-will not be printed unless \texttt{accepted} is passed as an argument to the
-style file.
-Submissions that include the author information will not
-be reviewed.
-
-\subsubsection{Self-Citations}
-
-If you are citing published papers for which you are an author, refer
-to yourself in the third person. In particular, do not use phrases
-that reveal your identity (e.g., ``in previous work \cite{langley00}, we
-have shown \ldots'').
-
-Do not anonymize citations in the reference section. The only exception are manuscripts that are
-not yet published (e.g., under submission). If you choose to refer to
-such unpublished manuscripts \cite{anonymous}, anonymized copies have
-to be submitted
-as Supplementary Material via CMT\@. However, keep in mind that an ICML
-paper should be self contained and should contain sufficient detail
-for the reviewers to evaluate the work. In particular, reviewers are
-not required to look at the Supplementary Material when writing their
-review (they are not required to look at more than the first $8$ pages of the submitted document).
-
-\subsubsection{Camera-Ready Author Information}
-\label{final author}
-
-If a paper is accepted, a final camera-ready copy must be prepared.
-%
-For camera-ready papers, author information should start 0.3~inches below the
-bottom rule surrounding the title. The authors' names should appear in 10~point
-bold type, in a row, separated by white space, and centered. Author names should
-not be broken across lines. Unbolded superscripted numbers, starting 1, should
-be used to refer to affiliations.
-
-Affiliations should be numbered in the order of appearance. A single footnote
-block of text should be used to list all the affiliations. (Academic
-affiliations should list Department, University, City, State/Region, Country.
-Similarly for industrial affiliations.)
-
-Each distinct affiliations should be listed once. If an author has multiple
-affiliations, multiple superscripts should be placed after the name, separated
-by thin spaces. If the authors would like to highlight equal contribution by
-multiple first authors, those authors should have an asterisk placed after their
-name in superscript, and the term ``\textsuperscript{*}Equal contribution"
-should be placed in the footnote block ahead of the list of affiliations. A
-list of corresponding authors and their emails (in the format Full Name
-\textless{}email@domain.com\textgreater{}) can follow the list of affiliations.
-Ideally only one or two names should be listed.
-
-A sample file with author names is included in the ICML2023 style file
-package. Turn on the \texttt{[accepted]} option to the stylefile to
-see the names rendered. All of the guidelines above are implemented
-by the \LaTeX\ style file.
-
-\subsection{Abstract}
-
-The paper abstract should begin in the left column, 0.4~inches below the final
-address. The heading `Abstract' should be centered, bold, and in 11~point type.
-The abstract body should use 10~point type, with a vertical spacing of
-11~points, and should be indented 0.25~inches more than normal on left-hand and
-right-hand margins. Insert 0.4~inches of blank space after the body. Keep your
-abstract brief and self-contained, limiting it to one paragraph and roughly 4--6
-sentences. Gross violations will require correction at the camera-ready phase.
-
-\subsection{Partitioning the Text}
-
-You should organize your paper into sections and paragraphs to help
-readers place a structure on the material and understand its
-contributions.
-
-\subsubsection{Sections and Subsections}
-
-Section headings should be numbered, flush left, and set in 11~pt bold
-type with the content words capitalized. Leave 0.25~inches of space
-before the heading and 0.15~inches after the heading.
-
-Similarly, subsection headings should be numbered, flush left, and set
-in 10~pt bold type with the content words capitalized. Leave
-0.2~inches of space before the heading and 0.13~inches afterward.
-
-Finally, subsubsection headings should be numbered, flush left, and
-set in 10~pt small caps with the content words capitalized. Leave
-0.18~inches of space before the heading and 0.1~inches after the
-heading.
-
-Please use no more than three levels of headings.
-
-\subsubsection{Paragraphs and Footnotes}
-
-Within each section or subsection, you should further partition the
-paper into paragraphs. Do not indent the first line of a given
-paragraph, but insert a blank line between succeeding ones.
-
-You can use footnotes\footnote{Footnotes
-should be complete sentences.} to provide readers with additional
-information about a topic without interrupting the flow of the paper.
-Indicate footnotes with a number in the text where the point is most
-relevant. Place the footnote in 9~point type at the bottom of the
-column in which it appears. Precede the first footnote in a column
-with a horizontal rule of 0.8~inches.\footnote{Multiple footnotes can
-appear in each column, in the same order as they appear in the text,
-but spread them across columns and pages if possible.}
-
-\begin{figure}[ht]
-\vskip 0.2in
-\begin{center}
-\centerline{\includegraphics[width=\columnwidth]{icml_numpapers}}
-\caption{Historical locations and number of accepted papers for International
-Machine Learning Conferences (ICML 1993 -- ICML 2008) and International
-Workshops on Machine Learning (ML 1988 -- ML 1992). At the time this figure was
-produced, the number of accepted papers for ICML 2008 was unknown and instead
-estimated.}
-\label{icml-historical}
-\end{center}
-\vskip -0.2in
-\end{figure}
-
-\subsection{Figures}
-
-You may want to include figures in the paper to illustrate
-your approach and results. Such artwork should be centered,
-legible, and separated from the text. Lines should be dark and at
-least 0.5~points thick for purposes of reproduction, and text should
-not appear on a gray background.
-
-Label all distinct components of each figure. If the figure takes the
-form of a graph, then give a name for each axis and include a legend
-that briefly describes each curve. Do not include a title inside the
-figure; instead, the caption should serve this function.
-
-Number figures sequentially, placing the figure number and caption
-\emph{after} the graphics, with at least 0.1~inches of space before
-the caption and 0.1~inches after it, as in
-\cref{icml-historical}. The figure caption should be set in
-9~point type and centered unless it runs two or more lines, in which
-case it should be flush left. You may float figures to the top or
-bottom of a column, and you may set wide figures across both columns
-(use the environment \texttt{figure*} in \LaTeX). Always place
-two-column figures at the top or bottom of the page.
-
-\subsection{Algorithms}
-
-If you are using \LaTeX, please use the ``algorithm'' and ``algorithmic''
-environments to format pseudocode. These require
-the corresponding stylefiles, algorithm.sty and
-algorithmic.sty, which are supplied with this package.
-\cref{alg:example} shows an example.
-
-\begin{algorithm}[tb]
-   \caption{Bubble Sort}
-   \label{alg:example}
-\begin{algorithmic}
-   \STATE {\bfseries Input:} data $x_i$, size $m$
-   \REPEAT
-   \STATE Initialize $noChange = true$.
-   \FOR{$i=1$ {\bfseries to} $m-1$}
-   \IF{$x_i > x_{i+1}$}
-   \STATE Swap $x_i$ and $x_{i+1}$
-   \STATE $noChange = false$
-   \ENDIF
-   \ENDFOR
-   \UNTIL{$noChange$ is $true$}
-\end{algorithmic}
-\end{algorithm}
-
-\subsection{Tables}
-
-You may also want to include tables that summarize material. Like
-figures, these should be centered, legible, and numbered consecutively.
-However, place the title \emph{above} the table with at least
-0.1~inches of space before the title and the same after it, as in
-\cref{sample-table}. The table title should be set in 9~point
-type and centered unless it runs two or more lines, in which case it
-should be flush left.
-
-% Note use of \abovespace and \belowspace to get reasonable spacing
-% above and below tabular lines.
+Using 32-bit integers for indices and offsets and 32-bit floats for ratings, storing both CSR views takes $16|\Omega| + 4(M+N+2)$ bytes. As shown in \cref{tab:dataset_summary}, for all $32{,}000{,}204$ ratings in MovieLens-32M, both structures together take only $513.1$~MB of RAM (over $130$ times smaller than a dense matrix) and load from disk in $4.23$~seconds. Because the ratings for any user or movie sit next to each other in memory, the CPU can read them sequentially without pointer-chasing, which makes our training loops much faster.
 
 \begin{table}[t]
-\caption{Classification accuracies for naive Bayes and flexible
-Bayes on various data sets.}
-\label{sample-table}
-\vskip 0.15in
+\caption{Summary statistics of the MovieLens-5M subset and the full MovieLens-32M dataset.}
+\label{tab:dataset_summary}
+\vskip 0.1in
 \begin{center}
-\begin{small}
+\begin{scriptsize}
+\setlength{\tabcolsep}{3.5pt}
 \begin{sc}
-\begin{tabular}{lcccr}
+\begin{tabular}{lcc}
 \toprule
-Data set & Naive & Flexible & Better? \\
+Statistic & ML-5M & ML-32M \\
 \midrule
-Breast    & 95.9$\pm$ 0.2& 96.7$\pm$ 0.2& $\surd$ \\
-Cleveland & 83.3$\pm$ 0.6& 80.0$\pm$ 0.6& $\times$\\
-Glass2    & 61.9$\pm$ 1.4& 83.8$\pm$ 0.7& $\surd$ \\
-Credit    & 74.8$\pm$ 0.5& 78.3$\pm$ 0.6&         \\
-Horse     & 73.3$\pm$ 0.9& 69.7$\pm$ 1.0& $\times$\\
-Meta      & 67.1$\pm$ 0.6& 76.5$\pm$ 0.5& $\surd$ \\
-Pima      & 75.1$\pm$ 0.6& 73.9$\pm$ 0.5&         \\
-Vehicle   & 44.9$\pm$ 0.6& 61.5$\pm$ 0.4& $\surd$ \\
+Number of Users ($M$) & $31{,}205$ & $200{,}948$ \\
+Number of Movies ($N$) & $48{,}708$ & $84{,}432$ \\
+Total Ratings ($|\Omega|$) & $5{,}000{,}000$ & $32{,}000{,}204$ \\
+Train Ratings ($|\Omega^{\text{train}}|$) & $4{,}000{,}446$ & $25{,}604{,}307$ \\
+Test Ratings ($|\Omega^{\text{test}}|$) & $999{,}554$ & $6{,}395{,}897$ \\
+Matrix Density & $0.3290\%$ & $0.1886\%$ \\
+Mean Rating $\mu$ / Std.\ $\sigma$ & $3.540$ / $1.060$ & $3.540$ / $1.059$ \\
+User Ratings Min / Median & $16$ / $73.0$ & $20$ / $73.0$ \\
+User Ratings Mean / Max & $160.2$ / $9{,}577$ & $159.2$ / $33{,}332$ \\
+Movie Ratings Min / Median & $1$ / $3.0$ & $1$ / $5.0$ \\
+Movie Ratings Mean / Max & $102.7$ / $16{,}041$ & $379.0$ / $102{,}929$ \\
+User Power-Law Slope $\hat{\alpha}_{\mathcal{U}}$ & $1.90$ & $1.90$ \\
+Movie Power-Law Slope $\hat{\alpha}_{\mathcal{I}}$ & $1.51$ & $1.48$ \\
 \bottomrule
 \end{tabular}
 \end{sc}
-\end{small}
+\end{scriptsize}
 \end{center}
 \vskip -0.1in
 \end{table}
 
-Tables contain textual material, whereas figures contain graphical material.
-Specify the contents of each row and column in the table's topmost
-row. Again, you may float tables to a column's top or bottom, and set
-wide tables across both columns. Place two-column tables at the
-top or bottom of the page.
+\subsection{Rating Distribution and Power-Law Behavior}
 
-\subsection{Theorems and such}
-The preferred way is to number definitions, propositions, lemmas, etc. consecutively, within sections, as shown below.
-\begin{definition}
-\label{def:inj}
-A function $f:X \to Y$ is injective if for any $x,y\in X$ different, $f(x)\ne f(y)$.
-\end{definition}
-Using \cref{def:inj} we immediate get the following result:
-\begin{proposition}
-If $f$ is injective mapping a set $X$ to another set $Y$, 
-the cardinality of $Y$ is at least as large as that of $X$
-\end{proposition}
-\begin{proof} 
-Left as an exercise to the reader. 
-\end{proof}
-\cref{lem:usefullemma} stated next will prove to be useful.
-\begin{lemma}
-\label{lem:usefullemma}
-For any $f:X \to Y$ and $g:Y\to Z$ injective functions, $f \circ g$ is injective.
-\end{lemma}
-\begin{theorem}
-\label{thm:bigtheorem}
-If $f:X\to Y$ is bijective, the cardinality of $X$ and $Y$ are the same.
-\end{theorem}
-An easy corollary of \cref{thm:bigtheorem} is the following:
-\begin{corollary}
-If $f:X\to Y$ is bijective, 
-the cardinality of $X$ is at least as large as that of $Y$.
-\end{corollary}
-\begin{assumption}
-The set $X$ is finite.
-\label{ass:xfinite}
-\end{assumption}
-\begin{remark}
-According to some, it is only the finite case (cf. \cref{ass:xfinite}) that is interesting.
-\end{remark}
-%restatable
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig1_dataset_distributions.pdf}}
+\caption{Exploratory plots of the MovieLens-32M and 5M datasets. \textbf{(a)} Percentage of ratings at each star value from $0.5$ to $5.0$, showing a peak at $4.0$ stars and lower counts on half-star values. \textbf{(b)} Log-log plot of the number of movies and users with $k$ ratings on MovieLens-32M, showing clear power-law tails and the minimum cutoff of $k_{\min}=20$ ratings per user.}
+\label{fig:dataset_distributions}
+\end{center}
+\vskip -0.2in
+\end{figure}
 
-\subsection{Citations and References}
+\cref{fig:dataset_distributions}(a) shows the distribution of star ratings from $0.5$ to $5.0$ on both MovieLens-32M and the 5M subset. The two datasets have almost identical rating proportions (within $0.02\%$ on every bar). Two simple patterns stand out:
+\begin{enumerate}
+    \item \textbf{Users Tend to Give High Ratings:} The average rating is $\mu = 3.540$ (with standard deviation $\sigma = 1.059$), which is well above the middle of the scale ($2.75$). The most common rating is $4.0$ stars ($26.15\%$ of all ratings, or $8{,}367{,}654$ ratings), followed by $3.0$ stars ($18.92\%$) and $5.0$ stars ($14.36\%$). Very low ratings ($0.5$, $1.0$, and $1.5$ stars combined) make up only $6.26\%$ of the data. This happens because people mostly choose to watch movies they expect to like \cite{koren2009matrix}.
+    \item \textbf{Whole Stars Are Used More Than Half Stars:} Every half-star rating ($0.5, 1.5, 2.5, 3.5, 4.5$) appears much less often than the whole-star ratings next to it. For instance, $3.5$ stars is $13.41\%$ of the data, whereas $3.0$ is $18.92\%$ and $4.0$ is $26.15\%$. There are two reasons for this: MovieLens only added half-star ratings in 2003 (older ratings were whole numbers only), and many users naturally prefer round numbers when rating quickly.
+\end{enumerate}
 
-Please use APA reference format regardless of your formatter
-or word processor. If you rely on the \LaTeX\/ bibliographic
-facility, use \texttt{natbib.sty} and \texttt{icml2023.bst}
-included in the style-file package to obtain this format.
+\cref{fig:dataset_distributions}(b) plots the degree distribution on a log-log scale: the horizontal axis is the number of ratings $k$, and the vertical axis is how many movies or users have exactly $k$ ratings. Both curves follow a straight line over several orders of magnitude on the log-log plot, which is the signature of a power law $P(k) \propto k^{-\alpha}$ \cite{clauset2009power}. However, movies and users behave very differently on the left side of the plot:
+\begin{itemize}
+    \item \textbf{Long Tail of Unpopular Movies:} Movie rating counts range from $k=1$ all the way to $k_{\max} = 102{,}929$ (\emph{The Shawshank Redemption (1994)}). Out of $84{,}432$ movies in MovieLens-32M, $16{,}895$ movies have only $1$ rating, and half of all movies have $5$ ratings or fewer (median $= 5.0$), even though the average movie has $379.0$ ratings. Using the standard maximum-likelihood formula for the power-law exponent \cite{clauset2009power} on the tail ($k_{\text{tail}} = 50$),
+    \begin{equation}
+        \hat{\alpha} = 1 + |\mathcal{T}| \left(\sum_{i \in \mathcal{T}} \ln \frac{k_i}{k_{\text{tail}} - 0.5}\right)^{-1},
+        \label{eq:clauset_mle}
+    \end{equation}
+    gives a slope of $\hat{\alpha}_{\mathcal{I}} = 1.48$ for movies. A small group of blockbuster movies gets most of the ratings, while most of the catalog sits in the sparse long tail.
+    \item \textbf{Sharp Cutoff at $k_{\min} = 20$ for Users:} Unlike movies, the user curve in \cref{fig:dataset_distributions}(b) stops suddenly at a vertical line at $k_{\min} = 20$ on MovieLens-32M (minimum $20$, median $73.0$, mean $159.2$, maximum $33{,}332$). This happens because the creators of the MovieLens dataset removed all users with fewer than $20$ ratings before releasing the data \cite{harper2015movielens}. Above $k = 20$, user activity follows a power law with slope $\hat{\alpha}_{\mathcal{U}} = 1.90$. Because of this rule, every user in the dataset has at least $20$ ratings (around $16$ in the training set), whereas thousands of movies have only $1$ or $2$ ratings. This makes cold-start much harder on the movie side than on the user side, which motivates our genre model in \cref{sec:genre_model}.
+\end{itemize}
 
-Citations within the text should include the authors' last names and
-year. If the authors' names are included in the sentence, place only
-the year in parentheses, for example when referencing Arthur Samuel's
-pioneering work \yrcite{Samuel59}. Otherwise place the entire
-reference in parentheses with the authors and year separated by a
-comma \cite{Samuel59}. List multiple references separated by
-semicolons \cite{kearns89,Samuel59,mitchell80}. Use the `et~al.'
-construct only for citations with three or more authors or after
-listing all authors to a publication in an earlier reference \cite{MachineLearningI}.
+\section{Models and Optimization}
+\label{sec:bias_model}
 
-Authors should cite their own work in the third person
-in the initial version of their paper submitted for blind review.
-Please refer to \cref{author info} for detailed instructions on how to
-cite your own papers.
+In this section, we present all three models developed in this paper and derive their Alternating Least Squares (ALS) optimization steps: (1) the baseline bias-only model, (2) the matrix factorization model with user and movie trait vectors $U$ and $V$, and (3) the genre-regularized matrix factorization model that incorporates movie genre metadata into the item prior, followed by our parallel in-place Cholesky implementation.
 
-Use an unnumbered first-level section heading for the references, and use a
-hanging indent style, with the first line of the reference flush against the
-left margin and subsequent lines indented by 10 points. The references at the
-end of this document give examples for journal articles \cite{Samuel59},
-conference publications \cite{langley00}, book chapters \cite{Newell81}, books
-\cite{DudaHart2nd}, edited volumes \cite{MachineLearningI}, technical reports
-\cite{mitchell80}, and dissertations \cite{kearns89}.
+\subsection{Bias-Only Model}
+\label{sec:bias_model_sub}
 
-Alphabetize references by the surnames of the first authors, with
-single author entries preceding multiple author entries. Order
-references for the same authors by year of publication, with the
-earliest first. Make sure that each reference includes all relevant
-information (e.g., page numbers).
+Before learning latent vectors, it is helpful to build a simple baseline model that captures general rating habits. Some users are generous and give high scores to almost everything ($a_m > 0$), while others are strict critics ($a_m < 0$). Likewise, popular classics get high scores from most viewers ($b_n > 0$), while weak movies get low scores ($b_n < 0$). The bias-only model predicts:
+\begin{equation}
+    \hat{r}_{m,n} = \mu + a_m + b_n,
+    \label{eq:bias_model_pred}
+\end{equation}
+where $\mu$ is the average training rating ($\mu = 3.5404$ on MovieLens-32M), $a_m \in \mathbb{R}$ is the bias of user $m$, and $b_n \in \mathbb{R}$ is the bias of movie $n$.
 
-Please put some effort into making references complete, presentable, and
-consistent, e.g. use the actual current name of authors.
-If using bibtex, please protect capital letters of names and
-abbreviations in titles, for example, use \{B\}ayesian or \{L\}ipschitz
-in your .bib file.
-
-\section*{Accessibility}
-Authors are kindly asked to make their submissions as accessible as possible for everyone including people with disabilities and sensory or neurological differences.
-Tips of how to achieve this and what to pay attention to will be provided on the conference website \url{http://icml.cc/}.
-
-\section*{Software and Data}
-
-If a paper is accepted, we strongly encourage the publication of software and data with the
-camera-ready version of the paper whenever appropriate. This can be
-done by including a URL in the camera-ready copy. However, \textbf{do not}
-include URLs that reveal your institution or identity in your
-submission for review. Instead, provide an anonymous URL or upload
-the material as ``Supplementary Material'' into the CMT reviewing
-system. Note that reviewers are not required to look at this material
-when writing their review.
-
-% Acknowledgements should only appear in the accepted version.
-\section*{Acknowledgements}
-
-\textbf{Do not} include acknowledgements in the initial version of
-the paper submitted for blind review.
-
-If a paper is accepted, the final camera-ready version can (and
-probably should) include acknowledgements. In this case, please
-place such acknowledgements in an unnumbered section at the
-end of the paper. Typically, this will include thanks to reviewers
-who gave useful comments, to colleagues who contributed to the ideas,
-and to funding agencies and corporate sponsors that provided financial
-support.
-
-
-% In the unusual situation where you want a paper to appear in the
-% references without citing it in the main text, use \nocite
-\nocite{langley00}
-
-\bibliography{example_paper}
+\bibliography{references}
 \bibliographystyle{icml2023}
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% APPENDIX
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\newpage
-\appendix
-\onecolumn
-\section{You \emph{can} have an appendix here.}
-
-You can have as much text here as you want. The main body must be at most $8$ pages long.
-For the final version, one more page can be added.
-If you want, you can use an appendix like this one, even using the one-column format.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
 \end{document}
-
-
-% This document was modified from the file originally made available by
-% Pat Langley and Andrea Danyluk for ICML-2K. This version was created
-% by Iain Murray in 2018, and modified by Alexandre Bouchard in
-% 2019 and 2021 and by Csaba Szepesvari, Gang Niu and Sivan Sabato in 2022.
-% Modified again in 2023 by Sivan Sabato and Jonathan Scarlett.
-% Previous contributors include Dan Roy, Lise Getoor and Tobias
-% Scheffer, which was slightly modified from the 2010 version by
-% Thorsten Joachims & Johannes Fuernkranz, slightly modified from the
-% 2009 version by Kiri Wagstaff and Sam Roweis's 2008 version, which is
-% slightly modified from Prasad Tadepalli's 2007 version which is a
-% lightly changed version of the previous year's version by Andrew
-% Moore, which was in turn edited from those of Kristian Kersting and
-% Codrina Lauth. Alex Smola contributed to the algorithmic style files.
