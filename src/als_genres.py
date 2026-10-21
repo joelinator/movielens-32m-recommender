@@ -218,3 +218,157 @@ class GenreALSResult:
     test_rmse: List[float] = field(default_factory=list)
     epoch_times: List[float] = field(default_factory=list)
 
+
+def fit_genre_als(
+    dataset: IndexedDataset,
+    genre_indptr: np.ndarray,
+    genre_indices: np.ndarray,
+    genre_weights: np.ndarray,
+    num_genres: int,
+    k_dim: int = 10,
+    num_iters: int = 15,
+    lam: float = 1.0,
+    gamma: float = 0.05,
+    tau: float = 5.0,
+    tau_f: float = 1.0,
+    use_global_mean: bool = False,
+    seed: int = 42,
+) -> GenreALSResult:
+    """Fit Hybrid Genre-Augmented PMF via 3-step Alternating Least Squares."""
+    rng = np.random.default_rng(seed)
+    mu = float(np.mean(dataset.user_train.ratings)) if use_global_mean else 0.0
+
+    user_biases = np.zeros(dataset.num_users, dtype=np.float32)
+    movie_biases = np.zeros(dataset.num_movies, dtype=np.float32)
+
+    scale = 1.0 / np.sqrt(max(1, k_dim))
+    user_factors = rng.normal(
+        0.0, scale * 0.1, size=(dataset.num_users, k_dim)
+    ).astype(np.float32)
+    movie_factors = rng.normal(
+        0.0, scale * 0.1, size=(dataset.num_movies, k_dim)
+    ).astype(np.float32)
+    genre_factors = rng.normal(
+        0.0, scale * 0.05, size=(num_genres, k_dim)
+    ).astype(np.float32)
+    movie_genre_means = np.zeros((dataset.num_movies, k_dim), dtype=np.float32)
+
+    compute_movie_genre_means(
+        genre_indptr,
+        genre_indices,
+        genre_weights,
+        genre_factors,
+        movie_genre_means,
+    )
+
+    result = GenreALSResult(
+        user_biases=user_biases,
+        movie_biases=movie_biases,
+        user_factors=user_factors,
+        movie_factors=movie_factors,
+        genre_factors=genre_factors,
+        movie_genre_means=movie_genre_means,
+        mu=mu,
+        k_dim=k_dim,
+        lam=lam,
+        gamma=gamma,
+        tau=tau,
+        tau_f=tau_f,
+    )
+
+    num_train = max(1, dataset.num_train_ratings)
+    num_test = max(1, dataset.num_test_ratings)
+
+    for _ in range(num_iters):
+        t0 = time.perf_counter()
+
+        # Step 1: Update user biases and factors
+        update_biases_and_factors_numba(
+            dataset.user_train.indptr,
+            dataset.user_train.indices,
+            dataset.user_train.ratings,
+            user_biases,
+            movie_biases,
+            user_factors,
+            movie_factors,
+            mu,
+            lam,
+            gamma,
+            tau,
+        )
+
+        # Step 2: Update movie biases and factors with genre prior mean v_bar_n
+        update_movies_with_genre_prior_numba(
+            dataset.movie_train.indptr,
+            dataset.movie_train.indices,
+            dataset.movie_train.ratings,
+            movie_biases,
+            user_biases,
+            movie_factors,
+            user_factors,
+            movie_genre_means,
+            mu,
+            lam,
+            gamma,
+            tau,
+        )
+
+        # Step 3: Update genre embeddings F and refresh movie_genre_means
+        genre_factors[:] = update_genre_factors(
+            genre_indptr,
+            genre_indices,
+            genre_weights,
+            movie_factors,
+            num_genres,
+            tau,
+            tau_f,
+        )
+        compute_movie_genre_means(
+            genre_indptr,
+            genre_indices,
+            genre_weights,
+            genre_factors,
+            movie_genre_means,
+        )
+
+        elapsed = time.perf_counter() - t0
+        result.epoch_times.append(elapsed)
+
+        sse_train = compute_pmf_sse_numba(
+            dataset.user_train.indptr,
+            dataset.user_train.indices,
+            dataset.user_train.ratings,
+            user_biases,
+            movie_biases,
+            user_factors,
+            movie_factors,
+            mu,
+        )
+        loss = compute_genre_pmf_objective(
+            sse_train,
+            user_biases,
+            movie_biases,
+            user_factors,
+            movie_factors,
+            movie_genre_means,
+            genre_factors,
+            lam,
+            gamma,
+            tau,
+            tau_f,
+        )
+        sse_test = compute_pmf_sse_numba(
+            dataset.user_test.indptr,
+            dataset.user_test.indices,
+            dataset.user_test.ratings,
+            user_biases,
+            movie_biases,
+            user_factors,
+            movie_factors,
+            mu,
+        )
+        result.train_loss.append(loss)
+        result.train_rmse.append(float(np.sqrt(sse_train / num_train)))
+        result.test_rmse.append(float(np.sqrt(sse_test / num_test)))
+
+    return result
