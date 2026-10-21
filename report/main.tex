@@ -168,6 +168,151 @@ Before learning latent vectors, it is helpful to build a simple baseline model t
 \end{equation}
 where $\mu$ is the average training rating ($\mu = 3.5404$ on MovieLens-32M), $a_m \in \mathbb{R}$ is the bias of user $m$, and $b_n \in \mathbb{R}$ is the bias of movie $n$.
 
+From a Bayesian viewpoint, we assume Gaussian rating noise $r_{m,n} \sim \mathcal{N}(\mu + a_m + b_n, \lambda^{-1})$ with precision $\lambda > 0$, and zero-mean Gaussian priors $a_m \sim \mathcal{N}(0, \gamma^{-1})$ and $b_n \sim \mathcal{N}(0, \gamma^{-1})$ with regularization strength $\gamma > 0$. Taking the negative log-posterior (dropping constants) gives the regularized squared-error loss function:
+\begin{align}
+    \mathcal{L}(a, b) &= \frac{\lambda}{2} \sum_{(m,n) \in \Omega^{\text{train}}} \left(r_{m,n} - \mu - a_m - b_n\right)^2 \nonumber \\
+    &\quad + \frac{\gamma}{2} \sum_{m=1}^M a_m^2 + \frac{\gamma}{2} \sum_{n=1}^N b_n^2.
+    \label{eq:bias_objective}
+\end{align}
+
+To minimize $\mathcal{L}(a,b)$ with Alternating Least Squares, we alternate between fixing $b$ to solve for $a$, and fixing $a$ to solve for $b$. Taking the derivative of $\mathcal{L}(a,b)$ with respect to $a_m$ and setting it to zero gives the exact update for user $m$:
+\begin{equation}
+    a_m \leftarrow \frac{\lambda \sum_{n \in \Omega_m^{\text{train}}} \left(r_{m,n} - \mu - b_n\right)}{\lambda |\Omega_m^{\text{train}}| + \gamma}.
+    \label{eq:user_bias_closed}
+\end{equation}
+Similarly, holding $a$ fixed and setting $\partial \mathcal{L} / \partial b_n = 0$ gives the exact update for movie $n$:
+\begin{equation}
+    b_n \leftarrow \frac{\lambda \sum_{m \in \Omega_{\text{train}}^n} \left(r_{m,n} - \mu - a_m\right)}{\lambda |\Omega_{\text{train}}^n| + \gamma}.
+    \label{eq:item_bias_closed}
+\end{equation}
+Notice how the regularization parameter $\gamma$ works in \cref{eq:item_bias_closed}: if we write $\bar{e}_n = \frac{1}{|\Omega_{\text{train}}^n|} \sum_{m \in \Omega_{\text{train}}^n} (r_{m,n} - \mu - a_m)$ for the average residual on movie $n$, then
+\begin{equation}
+    b_n = \left(\frac{|\Omega_{\text{train}}^n|}{|\Omega_{\text{train}}^n| + \gamma / \lambda}\right) \bar{e}_n.
+\end{equation}
+When a movie has thousands of ratings ($|\Omega_{\text{train}}^n| \gg \gamma / \lambda$), the fraction is close to $1$ and $b_n \approx \bar{e}_n$. When a movie has only $1$ or $2$ ratings, the denominator pulls $b_n$ closer to $0$ so the model does not trust a single noisy rating too much.
+
+We also note a useful sanity check for our dual CSR data structures: computing the sum of squared errors by looping over users ($\mathcal{S}_{\text{user}}$) must give the exact same number as looping over movies ($\mathcal{S}_{\text{movie}}$), because both sums add up the exact same set of training ratings $\Omega^{\text{train}}$ in a different order:
+\begin{align}
+    \mathcal{L}_{\mathcal{U}}(a,b) &= \frac{\lambda}{2} \sum_{m=1}^M \sum_{n \in \Omega_m^{\text{train}}} (r_{m,n} - \hat{r}_{m,n})^2 + \mathcal{R}(a,b) \nonumber \\
+    &= \frac{\lambda}{2} \sum_{n=1}^N \sum_{m \in \Omega_{\text{train}}^n} (r_{m,n} - \hat{r}_{m,n})^2 + \mathcal{R}(a,b) \nonumber \\
+    &= \mathcal{L}_{\mathcal{I}}(a,b),
+    \label{eq:fubini_invariance}
+\end{align}
+where $\hat{r}_{m,n} = \mu + a_m + b_n$ and $\mathcal{R}(a,b) = \frac{\gamma}{2}(\|a\|_2^2 + \|b\|_2^2)$.
+
+\subsection{Matrix Factorization with User and Movie Trait Vectors}
+\label{sec:latent_als}
+
+The bias-only model treats all users as if they agree on which movies are good or bad, differing only by a constant offset. To model personal taste (for example, liking sci-fi vs.\ romance), we add a $K$-dimensional latent vector $u_m \in \mathbb{R}^K$ for each user and $v_n \in \mathbb{R}^K$ for each movie \cite{mnih2007probabilistic,koren2009matrix}:
+\begin{equation}
+    \hat{r}_{m,n} = \mu + a_m + b_n + u_m^\top v_n, \quad u_m, v_n \in \mathbb{R}^K.
+    \label{eq:pmf_pred}
+\end{equation}
+We place independent zero-mean Gaussian priors $u_m \sim \mathcal{N}(\mathbf{0}, \tau^{-1} I_K)$ and $v_n \sim \mathcal{N}(\mathbf{0}, \tau^{-1} I_K)$ on the trait vectors with regularization parameter $\tau > 0$. The full regularized loss function over $\Theta = \{a, b, U, V\}$ is:
+\begin{align}
+    \mathcal{L}(\Theta) &= \frac{\lambda}{2} \sum_{(m,n) \in \Omega^{\text{train}}} \left(r_{m,n} - \mu - a_m - b_n - u_m^\top v_n\right)^2 \nonumber \\
+    &\quad + \frac{\gamma}{2} \left(\sum_{m=1}^M a_m^2 + \sum_{n=1}^N b_n^2\right) \nonumber \\
+    &\quad + \frac{\tau}{2} \left(\sum_{m=1}^M \|u_m\|_2^2 + \sum_{n=1}^N \|v_n\|_2^2\right).
+    \label{eq:pmf_full_loss}
+\end{align}
+
+Because $u_m^\top v_n$ multiplies two unknowns together, $\mathcal{L}(\Theta)$ is not convex when $U$ and $V$ vary at the same time. However, if we hold the movie parameters $(b, V)$ fixed, $\mathcal{L}(\Theta)$ becomes a simple quadratic function of $(a_m, u_m)$ for each user $m$ separately. Setting the derivatives with respect to $a_m$ and $u_m$ to zero (see \cref{app:derivations} for the step-by-step derivation) gives the user updates:
+\begin{align}
+    a_m &\leftarrow \frac{\lambda \sum_{n \in \Omega_m^{\text{train}}} \left(r_{m,n} - \mu - b_n - u_m^\top v_n\right)}{\lambda |\Omega_m^{\text{train}}| + \gamma}, \label{eq:pmf_user_bias} \\
+    u_m &\leftarrow \left(\lambda \sum_{n \in \Omega_m^{\text{train}}} v_n v_n^\top + \tau I_K\right)^{-1} \!\! \left(\lambda \sum_{n \in \Omega_m^{\text{train}}} \tilde{r}_{m,n}^{(u)} v_n\right), \label{eq:pmf_user_vec}
+\end{align}
+where $\tilde{r}_{m,n}^{(u)} = r_{m,n} - \mu - a_m - b_n$ is the rating residual after subtracting the biases.
+
+In the second half of each ALS iteration, we hold $(a, U)$ fixed and update each movie's bias $b_n$ and trait vector $v_n$ using the movie-indexed CSR matrix $\mathcal{S}_{\text{movie}}$:
+\begin{align}
+    b_n &\leftarrow \frac{\lambda \sum_{m \in \Omega_{\text{train}}^n} \left(r_{m,n} - \mu - a_m - u_m^\top v_n\right)}{\lambda |\Omega_{\text{train}}^n| + \gamma}, \label{eq:pmf_item_bias} \\
+    v_n &\leftarrow \!\left(\lambda \!\! \sum_{m \in \Omega_{\text{train}}^n} \!\! u_m u_m^\top + \tau I_K\right)^{\!-1} \!\!\!\! \left(\lambda \!\! \sum_{m \in \Omega_{\text{train}}^n} \!\! \tilde{r}_{m,n}^{(v)} u_m\right)\!, \label{eq:pmf_item_vec}
+\end{align}
+where $\tilde{r}_{m,n}^{(v)} = r_{m,n} - \mu - a_m - b_n$. Because every coordinate step finds the exact minimum for that block of variables, the total loss $\mathcal{L}(\Theta)$ is guaranteed to go down at every iteration.
+
+\subsection{Adding Movie Genres: Altered Loss Function and ALS Steps}
+\label{sec:genre_model}
+
+A clear weakness of standard matrix factorization appears when a movie is brand new ($|\Omega_{\text{train}}^n| = 0$) or has only a few ratings: because the prior on $v_n$ is centered at zero, \cref{eq:pmf_item_vec} sets $v_n = \mathbf{0}$ for any unrated movie. As a result, the dot product $u_m^\top v_n$ becomes zero, and the model cannot personalize predictions for new movies at all. To fix this, we incorporate the movie genre metadata directly into our model \cite{agarwal2009regression}.
+
+In the MovieLens catalog, each movie $n$ is tagged with a set of genres $\mathcal{G}_n \subseteq \{1, \dots, G\}$ (for example, Adventure, Children, and Fantasy for \emph{Jumanji (1995)}; there are $G = 20$ genres in total, including an ``unlisted'' category). We assign each genre $g \in \{1, \dots, G\}$ its own latent trait vector $f_g \in \mathbb{R}^K$. Instead of centering the Gaussian prior of $v_n$ at zero, we center it at the normalized sum of the movie's genre vectors:
+\begin{equation}
+\bar{f}_n = \frac{1}{\sqrt{|\mathcal{G}_n|}} \sum_{g \in \mathcal{G}_n} f_g, \qquad v_n \,\big|\, F \;\sim\; \mathcal{N}\!\left(\bar{f}_n,\, \tau^{-1} I_K\right).
+\label{eq:genre_prior_centroid}
+\end{equation}
+Dividing by $\sqrt{|\mathcal{G}_n|}$ keeps the variance of $\bar{f}_n$ constant whether a movie has $1$ genre tag or $5$ genre tags. Placing a Gaussian prior $f_g \sim \mathcal{N}(\mathbf{0}, \tau_f^{-1} I_K)$ on the genre vectors gives our altered loss function:
+\begin{align}
+\mathcal{L}_{\text{genre}} &= \frac{\lambda}{2} \!\sum_{(m,n) \in \Omega}\! \left(r_{mn} - \mu - a_m - b_n - u_m^\top v_n\right)^2 \nonumber \\
+&\quad + \frac{\gamma}{2} \left( \sum_{m=1}^M a_m^2 + \sum_{n=1}^N b_n^2 \right) + \frac{\tau}{2} \sum_{m=1}^M \|u_m\|_2^2 \nonumber \\
+&\quad + \frac{\tau}{2} \sum_{n=1}^N \left\| v_n - \bar{f}_n \right\|_2^2 + \frac{\tau_f}{2} \sum_{g=1}^G \|f_g\|_2^2.
+\label{eq:genre_als_objective}
+\end{align}
+
+\textbf{Optimization Steps.} Because the new penalty $\frac{\tau}{2} \sum_{n=1}^N \|v_n - \bar{f}_n\|_2^2$ is quadratic in both $v_n$ and $f_g$, each ALS epoch cleanly splits into three alternating update steps:
+\begin{enumerate}
+    \item \textbf{Step 1: Update Users ($a_m, u_m$)}: Since the genre terms do not depend on $a_m$ or $u_m$, the user updates are identical to \cref{eq:pmf_user_bias,eq:pmf_user_vec}.
+    \item \textbf{Step 2: Update Movies ($b_n, v_n$)}: The movie bias update $b_n$ is unchanged from \cref{eq:pmf_item_bias}. Taking the derivative of \cref{eq:genre_als_objective} with respect to $v_n$ and setting it to zero adds $\tau \bar{f}_n$ to the right-hand side of the movie vector update:
+    \begin{equation}
+    \begin{aligned}
+    v_n \leftarrow &\left( \lambda \sum_{m \in \Omega^n} u_m u_m^\top + \tau I_K \right)^{-1} \\
+    &\times \left( \lambda \sum_{m \in \Omega^n} \tilde{r}_{mn}^{(v)} u_m + \frac{\tau}{\sqrt{|\mathcal{G}_n|}} \sum_{g \in \mathcal{G}_n} f_g \right).
+    \end{aligned}
+    \label{eq:genre_item_vec_update}
+    \end{equation}
+    Equation~\eqref{eq:genre_item_vec_update} shows why this works so well:
+    \begin{itemize}
+        \item \emph{New / Cold-start movie} ($|\Omega^n| = 0$): The sum over ratings is zero, so $v_n \leftarrow (\tau I_K)^{-1} (\tau \bar{f}_n) = \bar{f}_n$. Even with zero ratings, a new movie immediately gets a meaningful trait vector built from its genres!
+        \item \emph{Popular movie} ($|\Omega^n| \gg \tau / \lambda$): The rating sum $\lambda \sum_{m \in \Omega^n} u_m u_m^\top$ is much larger than $\tau I_K$, so the data dominates the prior and $v_n$ is learned freely from user ratings.
+    \end{itemize}
+    \item \textbf{Step 3: Update Genre Vectors ($f_g$)}: Holding the movie vectors $V = [v_1, \dots, v_N]^\top \in \mathbb{R}^{N \times K}$ fixed, let $B \in \mathbb{R}^{N \times G}$ be the movie--genre matrix where $B_{ng} = |\mathcal{G}_n|^{-1/2}$ if movie $n$ has genre $g$ and $0$ otherwise, so $\bar{f}_n = (B F)_{n,:}^\top$. Minimizing \cref{eq:genre_als_objective} with respect to $F = [f_1, \dots, f_G]^\top \in \mathbb{R}^{G \times K}$ is a simple ridge regression with exact solution:
+    \begin{equation}
+    F \leftarrow \left( \tau B^\top B + \tau_f I_G \right)^{-1} \left( \tau B^\top V \right),
+    \label{eq:genre_matrix_update}
+    \end{equation}
+    or written for a single genre $g$ over the set of movies $\mathcal{I}_g = \{n : g \in \mathcal{G}_n\}$ with partial residual $\tilde{v}_n^{(-g)} = v_n - |\mathcal{G}_n|^{-1/2} \sum_{g' \in \mathcal{G}_n \setminus \{g\}} f_{g'}$:
+    \begin{equation}
+    f_g \leftarrow \frac{\tau \sum_{n \in \mathcal{I}_g} |\mathcal{G}_n|^{-1/2} \, \tilde{v}_n^{(-g)}}{\tau \sum_{n \in \mathcal{I}_g} |\mathcal{G}_n|^{-1} + \tau_f}.
+    \label{eq:genre_coord_update}
+    \end{equation}
+\end{enumerate}
+Because there are only $G = 20$ genres, solving the $20 \times 20$ system in Step 3 takes less than $2$~ms per epoch.
+
+\subsection{Making ALS Fast on 32 Million Ratings}
+\label{sec:fast_cholesky}
+
+Running \cref{eq:pmf_user_vec,eq:pmf_item_vec,eq:genre_item_vec_update} on $25.6$ million training ratings per epoch requires building and solving $M + N = 285{,}380$ linear systems of size $K \times K$ in every iteration. A naive implementation in Python or vectorized array operations runs into a major memory bottleneck:
+\begin{itemize}
+    \item \textbf{Why Batched Array Operations Are Slow:} If we try to avoid loops by computing the outer products $v_n v_n^\top \in \mathbb{R}^{K \times K}$ for a batch of rows and summing them with segmented array reductions, the program has to allocate a 3D array of shape $(\text{ratings in batch}) \times K \times K$. For popular movies, a batch of rows can contain millions of ratings, which creates gigabytes of temporary arrays at every step and slows down memory access.
+    \item \textbf{Parallel CSR Loops with In-Place Cholesky:} Instead of creating large temporary arrays, we compile the user and movie update loops to multi-threaded machine code. Each CPU thread processes one user $m$ (or movie $n$) at a time using a small thread-local matrix $A \in \mathbb{R}^{K \times K}$ and vector $b \in \mathbb{R}^K$ that fit directly inside the CPU cache (only $2$~KB of memory for $K=16$). As the thread scans through the user's CSR slice, it adds $\lambda v_n v_n^\top$ into the lower triangle of $A$. Because $A = \lambda \sum v_n v_n^\top + \tau I_K$ is symmetric and positive-definite whenever $\tau > 0$, we solve $A u_m = b$ in-place using Cholesky decomposition $A = L L^\top$:
+    \begin{equation}
+    \begin{aligned}
+        L_{i,j} &= \frac{1}{L_{j,j}} \!\left(A_{i,j} - \sum_{p=1}^{j-1} L_{i,p} L_{j,p}\right) \quad (i > j), \\
+        L_{i,i} &= \sqrt{A_{i,i} - \sum_{p=1}^{i-1} L_{i,p}^2},
+    \end{aligned}
+    \end{equation}
+    followed by forward and backward substitution. Because $A$ is symmetric, we only compute half of the matrix entries, and solving via Cholesky takes half as many operations as standard Gaussian elimination without needing external LAPACK calls.
+\end{itemize}
+
+\section{Experimental Results}
+\label{sec:experiments}
+
+In this section, we present all of our experimental results on both the MovieLens-5M subset and the full MovieLens-32M dataset.
+
+\subsection{Train/Test Split and Evaluation Setup}
+To measure how well our models predict unseen ratings, we split the observed ratings $\Omega$ randomly using an $80\% / 20\%$ Bernoulli coin flip (with fixed random seed $42$) into a training set $\Omega^{\text{train}}$ ($25{,}604{,}307$ ratings on 32M; $4{,}000{,}446$ on 5M) and a test set $\Omega^{\text{test}}$ ($6{,}395{,}897$ ratings on 32M; $999{,}554$ on 5M). Both sets are stored in dual CSR format ($\mathcal{S}_{\text{user}}$ and $\mathcal{S}_{\text{movie}}$). We also construct a controlled cold-start split where $500$ movies ($73{,}217$ test ratings) have all of their training ratings held out ($|\Omega_{\text{train}}^n| = 0$) so we can directly test cold-start predictions.
+
+We evaluate all models using the Root Mean Squared Error (RMSE) on both the training and test sets:
+\begin{equation}
+    \text{RMSE}(\Omega') = \sqrt{\frac{1}{|\Omega'|} \sum_{(m,n) \in \Omega'} \left(r_{m,n} - \hat{r}_{m,n}\right)^2}.
+\end{equation}
+Before training, latent vectors $u_m$ and $v_n$ are initialized from a normal distribution $\mathcal{N}(0, (0.1 / \sqrt{K})^2)$ with a fixed random seed so all comparisons are reproducible.
+
+\subsection{Bias-Only ALS Results}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+
 \bibliography{references}
 \bibliographystyle{icml2023}
 \end{document}
