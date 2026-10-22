@@ -312,6 +312,224 @@ Before training, latent vectors $u_m$ and $v_n$ are initialized from a normal di
 \begin{figure}[t]
 \vskip 0.1in
 \begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig2_bias_als_convergence.pdf}}
+\caption{Training curves for the bias-only ALS model ($\lambda=1.0, \gamma=0.05$) over $25$ iterations on MovieLens-32M and MovieLens-5M. \textbf{(a)} Regularized loss $\mathcal{L}(a,b)$ computed from the user CSR matrix (solid/dashed lines) and from the movie CSR matrix (circle/square markers), showing monotonic decrease and exact agreement between both data views. \textbf{(b)} Training and test RMSE over iterations.}
+\label{fig:bias_als_convergence}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+\cref{fig:bias_als_convergence} shows the convergence of the bias-only model ($\lambda = 1.0, \gamma = 0.05$) over $25$ ALS iterations on both MovieLens-32M and MovieLens-5M. On the full 32M dataset, one full iteration (updating all $200{,}948$ user biases and all $84{,}432$ movie biases) takes only \textbf{62.3~ms} ($11.6$~ms per iteration on 5M).
+
+In \cref{fig:bias_als_convergence}(a), we plot the loss computed over the user CSR matrix ($\mathcal{S}_{\text{user}}$) as lines and the loss computed over the movie CSR matrix ($\mathcal{S}_{\text{movie}}$) as markers. The two values match at every iteration: across all $25$ epochs on MovieLens-32M, the maximum relative difference between the user-CSR loss and the movie-CSR loss is \textbf{$\mathbf{5.28 \times 10^{-15}}$}, which is simply standard 64-bit floating-point rounding error. This confirms that both CSR matrices store the exact same split.
+
+In \cref{fig:bias_als_convergence}(b), both the loss and the RMSE flatten out after just $4$ to $5$ iterations. On MovieLens-32M, the training RMSE goes down from $0.8612$ at iteration $1$ to \textbf{0.8456}, and the test RMSE goes down from $0.8719$ to \textbf{0.8563} (on MovieLens-5M, train and test RMSE reach $0.8394$ and $0.8583$). Compared to predicting the global mean $\mu$ for every rating (which gives a test RMSE of $1.0590$), user and movie biases alone reduce the test RMSE by $19.1\%$.
+
+\subsection{Matrix Factorization Convergence and Number of Iterations}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig3_pmf_loss_and_rmse.pdf}}
+\caption{Training curves for matrix factorization with $K=10$ latent dimensions ($\lambda=1.0, \gamma=0.05$) over $20$ ALS iterations on MovieLens-32M ($\tau=7.0$) and MovieLens-5M ($\tau=5.0$). \textbf{(a)} Regularized loss $\mathcal{L}(\Theta)$ decreasing monotonically at every step. \textbf{(b)} Training and test RMSE over iterations.}
+\label{fig:pmf_convergence}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+\cref{fig:pmf_convergence} shows the training progress when we add $K=10$ latent dimensions and run ALS for $20$ iterations. As expected from theory, the regularized loss in \cref{fig:pmf_convergence}(a) goes down smoothly at every single iteration, dropping from $8.28 \times 10^6$ at iteration $1$ to $6.83 \times 10^6$ at iteration $20$ on MovieLens-32M.
+
+At the same time, \cref{fig:pmf_convergence}(b) shows that the test RMSE on MovieLens-32M drops to \textbf{0.7805} (and train RMSE reaches $0.7082$), which beats the bias-only test RMSE ($0.8563$) by \textbf{0.0758 stars}. Looking at how fast the curve flattens, most of the improvement happens in the first $10$ to $12$ iterations; between iteration $15$ and iteration $20$, the test RMSE changes by less than $0.0005$ stars. Therefore, running $15$ to $20$ ALS iterations is enough to reach convergence without wasting compute time.
+
+\subsection{Runtime Speedup on 32M Ratings}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig6_runtime_benchmark.pdf}}
+\caption{Runtime comparison across latent dimensions $K \in \{2, 4, 8, 10, 16, 20\}$. \textbf{(a)} Time per ALS epoch (in seconds, log scale) comparing batched array operations against single-thread and 12-thread CSR Cholesky solvers. \textbf{(b)} Speedup factor of the 12-thread CSR Cholesky solver over batched array operations and single-thread execution.}
+\label{fig:runtime_benchmark}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+\cref{fig:runtime_benchmark} and \cref{tab:scaling_benchmarks} compare the training speed of our parallel CSR Cholesky solver against a single-threaded CSR solver and a vectorized batched solver. On MovieLens-5M at $K=10$, the batched solver takes $12.73$~seconds per epoch, the single-threaded CSR solver takes $0.337$~seconds, and the 12-thread CSR solver takes only \textbf{0.183~seconds} per epoch, giving a \textbf{69.6$\times$ speedup} over batched array operations. On the full MovieLens-32M dataset, one epoch takes $0.357$~s at $K=2$, $1.927$~s at $K=10$, and $2.899$~s at $K=16$. This allows us to train a $K=16$ model on all $32$ million ratings in under a minute on a standard laptop.
+
+\begin{table}[t]
+\caption{Train/Test RMSE and runtime per epoch across latent dimensions $K$ on MovieLens-5M ($\tau=5.0$) and MovieLens-32M ($\tau=7.0$, $\lambda=1.0, \gamma=0.05$).}
+\label{tab:scaling_benchmarks}
+\vskip 0.1in
+\begin{center}
+\begin{footnotesize}
+\setlength{\tabcolsep}{3.2pt}
+\begin{sc}
+\begin{tabular}{cccccc}
+\toprule
+Rank & \multicolumn{2}{c}{MovieLens-5M} & \multicolumn{3}{c}{MovieLens-32M} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6}
+$K$ & Test & Time/Ep & Train & Test & Time/Ep \\
+\midrule
+$0$ (Bias) & $0.8583$ & $0.012$~s & $0.8456$ & $0.8563$ & $0.062$~s \\
+$2$ & $0.8183$ & $0.049$~s & $0.7936$ & $0.8183$ & $0.357$~s \\
+$4$ & $0.8028$ & $0.072$~s & $0.7603$ & $0.7974$ & $0.539$~s \\
+$8$ & $0.7914$ & $0.144$~s & $0.7231$ & $0.7835$ & $1.219$~s \\
+$10$ & $0.7903$ & $0.183$~s & $0.7093$ & $0.7810$ & $1.927$~s \\
+$16$ & $0.7936$ & $0.277$~s & $0.6757$ & $\mathbf{0.7803}$ & $2.899$~s \\
+$20$ & $0.8002$ & $0.344$~s & $0.6581$ & $0.7835$ & $3.329$~s \\
+\bottomrule
+\end{tabular}
+\end{sc}
+\end{footnotesize}
+\end{center}
+\vskip -0.1in
+\end{table}
+
+\subsection{Choosing Hyperparameters ($\lambda, \gamma, \tau$) and Latent Dimension $K$}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig4_hyperparameter_search.pdf}}
+\caption{Hyperparameter search for $K=10$ ($\lambda=1.0$). \textbf{(a)} Grid search on MovieLens-5M over vector regularization $\tau \in [0.5, 15.0]$ and bias regularization $\gamma \in \{0.01, 0.05, 0.25, 1.0\}$. \textbf{(b)} Train and test RMSE on MovieLens-32M across $\tau$, showing overfitting when $\tau$ is too small.}
+\label{fig:hyperparameter_search}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+In the loss function \cref{eq:pmf_full_loss}, multiplying $(\lambda, \gamma, \tau)$ by the same constant does not change the minimum; only the ratios $\gamma / \lambda$ and $\tau / \lambda$ matter. We can therefore fix $\lambda = 1.0$ and tune $\gamma$ and $\tau$. \cref{fig:hyperparameter_search}(a) shows a grid search over $\tau \in \{0.5, 1.0, 2.5, 5.0, 7.5, 10.0, 15.0\}$ and $\gamma \in \{0.01, 0.05, 0.25, 1.0\}$ at $K=10$ on MovieLens-5M, and \cref{fig:hyperparameter_search}(b) shows the effect of $\tau$ on MovieLens-32M.
+
+We see two clear trends:
+\begin{enumerate}
+    \item \textbf{Vector Regularization $\tau$ Matters Much More Than $\gamma$:} Changing the bias penalty $\gamma$ from $0.01$ to $1.0$ barely changes the test RMSE (less than $0.002$ stars), because each user and movie only has one scalar bias parameter. In contrast, the matrices $U$ and $V$ contain $K(M+N)$ parameters ($2.85$ million numbers at $K=10$ on 32M). When $\tau$ is too small ($\tau = 0.5$ on 5M), the model memorizes the training ratings (train RMSE drops to $0.6779$) but performs poorly on the test set (test RMSE rises to $0.8161$). The best test RMSE is achieved around $\tau = 5.0$ on 5M and $\tau = 7.0$ on 32M, with $\gamma = 0.05$ or $0.1$.
+    \item \textbf{Diminishing Returns as $K$ Increases:} \cref{fig:k_scaling_overfitting}(a) and \cref{tab:scaling_benchmarks} show how RMSE changes as we increase the number of latent dimensions $K \in \{0, 2, 4, 8, 10, 16, 20, 32\}$. Going from $K=0$ ($0.8563$) to $K=2$ ($0.8183$), $K=4$ ($0.7974$), and $K=8$ ($0.7835$) brings large reductions in test error on MovieLens-32M. Past $K=10$ ($0.7810$), adding more dimensions gives diminishing returns: $K=16$ reaches the best test RMSE of \textbf{0.7803} on 32M (while $K=10$ is best on the smaller 5M subset at $0.7903$), and by $K=20$ the test RMSE starts creeping back up ($0.7835$) while training time continues to grow.
+\end{enumerate}
+
+\subsection{Why $K=20$ Overfits Users with Few Ratings}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig5_k_scaling_and_overfitting.pdf}}
+\caption{Effect of latent dimension $K$ and user activity on overfitting. \textbf{(a)} Train and test RMSE across $K \in \{0, 2, 4, 8, 10, 16, 20, 32\}$ on MovieLens-32M ($\tau=7$) and MovieLens-5M for tuned ($\tau=5$) vs.\ weak ($\tau=1$) regularization. \textbf{(b)} Test RMSE broken down by the number of training ratings per user $|\Omega_m^{\text{train}}|$, showing that going from $K=10$ to $K=20$ hurts users with few ratings when $\tau$ is small.}
+\label{fig:k_scaling_overfitting}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+To see why $K=20$ starts to overfit compared to $K=10$, \cref{fig:k_scaling_overfitting}(b) breaks down the test RMSE by how many training ratings each user has: $<20, 20\text{--}39, 40\text{--}79, 80\text{--}159, 160\text{--}319$, and $320+$.
+When regularization is weak ($\tau = 1.0$), increasing $K$ from $10$ to $20$ causes a big jump in test error for users with few ratings:
+\begin{itemize}
+    \item For users with $20\text{--}39$ training ratings, test RMSE gets worse by \textbf{+0.0722 stars} (rising from $0.9196$ at $K=10$ to $0.9918$ at $K=20$).
+    \item For active users with $320+$ ratings, the test RMSE change is $6$ times smaller ($+0.0120$ stars, from $0.7717$ to $0.7837$).
+\end{itemize}
+The reason is simple: when we solve for $u_m \in \mathbb{R}^K$ in \cref{eq:pmf_user_vec}, we are fitting $K$ numbers using $|\Omega_m^{\text{train}}|$ ratings. If a user only has $20$ training ratings and $K=20$, the model has as many free parameters as data points for that user! Without strong regularization $\tau$, $u_m$ fits the noise in those $20$ ratings and makes bad predictions on unseen test movies. Raising $\tau$ from $1.0$ to $5.0$ keeps the entries of $u_m$ small and removes over $70\%$ of this overfitting gap across all user groups (\cref{fig:k_scaling_overfitting}b).
+
+\subsection{Visualizing 2D Movie Trait Vectors}
+\label{sec:geometry_foldin_polarization}
+\label{sec:qualitative_analysis}
+
+We train our matrix factorization model with $K=2$ latent dimensions ($\lambda=1.0, \gamma=0.1, \tau=5.0$, including user and movie biases) for $18$ epochs on the full MovieLens-32M dataset, reaching a train RMSE of $0.7931$ and test RMSE of $0.8180$. \Cref{fig:movie_2d_embeddings} plots the learned 2D vectors $v_n = (v_{n,1}, v_{n,2})$ for popular movies across several well-known series and genres.
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig7_movie_2d_embeddings.pdf}}
+\caption{2D movie trait vectors $v_n \in \mathbb{R}^2$ learned from ratings alone on MovieLens-32M ($K=2$, $18$ epochs, test RMSE $= 0.8180$). Similar movies sit close together, while very different styles of movies sit on opposite sides of the space.}
+\label{fig:movie_2d_embeddings}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+Even though the model was trained only on user IDs, movie IDs, and star ratings (with no movie titles or genre labels), the 2D space organizes movies in a very clear way:
+\begin{enumerate}
+    \item \textbf{Sequels and Similar Movies Cluster Together}: Both \emph{Lord of the Rings} movies land right next to each other in the upper-center blockbuster region: \emph{The Fellowship of the Ring} is at $(+0.35, +1.27)$ and \emph{The Return of the King} is at $(+0.25, +1.37)$, right below \emph{Inception} $(+0.39, +2.22)$. Likewise, classic Disney/Pixar animated movies (\emph{Toy Story} at $(+0.09, -0.66)$ and \emph{The Lion King} at $(-0.58, -0.19)$) sit close together in the family animation region.
+    \item \textbf{Opposite Movies Sit in Opposite Parts of the Space}: Moving horizontally from left to right along $v_{n,1}$ goes from mainstream romance dramas on the left, such as \emph{Twilight} $(-2.27, +1.25)$ and \emph{Titanic} $(-1.16, +0.94)$, to acclaimed crime dramas on the right ($v_{n,1} > +1.7$), such as \emph{The Godfather} $(+1.72, +0.43)$, \emph{Pulp Fiction} $(+2.14, +0.39)$, and \emph{Fargo} $(+2.16, +0.24)$. Moving vertically from top to bottom along $v_{n,2}$ goes from epic sci-fi and fantasy blockbusters at the top ($v_{n,2} > +1.2$) down to slapstick comedies at the bottom, such as \emph{Dumb \& Dumber} $(-0.47, -3.66)$.
+\end{enumerate}
+
+\subsection{Dummy User Recommendations (\emph{Lord of the Rings})}
+
+Suppose a new user joins the platform and gives a single $5.0$-star rating to \emph{The Lord of the Rings: The Fellowship of the Ring (2001)} ($n^* = 339$, which has $58{,}491$ training ratings and bias $b_{n^*} = +0.5191$). Instead of retraining the whole model from scratch, we keep all movie parameters $(b, V)$ from our $K=16$ MovieLens-32M model fixed and run the user update equations \cref{eq:pmf_user_bias,eq:pmf_user_vec} on this single rating. Because the dummy user has only rated one movie $n^*$, their learned vector $u_{\text{new}}$ points in the exact same direction as $v_{n^*}$:
+\begin{equation}
+u_{\text{new}} = \frac{\lambda (r_{\text{new}, n^*} - \mu - a_{\text{new}} - b_{n^*})}{\lambda \|v_{n^*}\|_2^2 + \tau} v_{n^*}.
+\label{eq:single_item_foldin}
+\end{equation}
+With $\lambda = 1.0, \gamma = 0.1, \tau = 5.0$, this gives $a_{\text{new}} = +0.7024$ and vector length $\|u_{\text{new}}\|_2 = 0.0281$. Because the user only rated one movie, the regularization $\tau = 5.0$ keeps $\|u_{\text{new}}\|_2$ quite small. As a result, when we rank candidate movies $n$ using the score
+\begin{equation}
+s_\alpha(m, n) = u_m^\top v_n + \alpha b_n,
+\label{eq:scoring_rule}
+\end{equation}
+the weight $\alpha$ on the movie bias $b_n$ makes a big difference. \Cref{tab:dummy_user_lotr} shows the Top-10 recommended movies under three simple settings: (A) full movie bias ($\alpha = 1.0$), (B) small movie bias ($\alpha = 0.05$, all movies), and (C) small movie bias ($\alpha = 0.05$) restricted to movies with at least $100$ ratings.
+
+\begin{table*}[t]
+\caption{Top-10 recommendations for a dummy user who gave $5.0$ stars to \emph{The Lord of the Rings: The Fellowship of the Ring (2001)} ($K=16$ model on MovieLens-32M), comparing three ranking rules $s_\alpha(\text{new}, n) = u_{\text{new}}^\top v_n + \alpha b_n$. Using $\alpha=0.05$ brings the other \emph{Lord of the Rings} and \emph{Hobbit} movies to the top.}
+\label{tab:dummy_user_lotr}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{cllrrr}
+\toprule
+\textbf{Rank} & \textbf{Recommended Title} & \textbf{Genres} & $u_{\text{new}}^\top v_n$ & $b_n$ & $|\Omega_{\text{train}}^n|$ \\
+\midrule
+\multicolumn{6}{l}{\emph{Setting A: Full Movie Bias $s_{1.0}(\text{new}, n) = u_{\text{new}}^\top v_n + b_n$ (All Movies)}} \\
+1 & Hello \& Goodbye (2018) & Documentary & $0.0002$ & $+3.2712$ & $1$ \\
+2 & SpongeBob SquarePants: Heroes of Bikini Bottom (2011) & Animation|Comedy & $-0.0067$ & $+3.2557$ & $2$ \\
+
+10 & Counterfeiters, The (Die F\"alscher) (2007) & $1.398$ & $+0.4343$ & $1,131$ & $0.695$ \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table*}
+
+\Cref{tab:polarizing_movies} and \cref{fig:polarizing_movies}(b) list the Top-10 most polarizing and Top-10 least polarizing movies. The results make intuitive sense:
+\begin{itemize}
+    \item \textbf{Most Polarizing Movies ($\|v_n\|_2 \in [7.54, 8.00]$)}: These include famously love-it-or-hate-it movies with wide rating spread ($\sigma(r) \approx 1.12\text{--}1.23$), such as the \emph{Star Wars} prequels (\emph{Attack of the Clones}, \emph{Revenge of the Sith}, \emph{The Phantom Menace}), broad slapstick comedy \emph{Dumb \& Dumber}, and shaky-cam horror \emph{The Blair Witch Project}, as well as geek-culture franchises (\emph{Lord of the Rings}, \emph{Star Wars}, \emph{Harry Potter}) that immediately separate dedicated fantasy/sci-fi fans from viewers who do not care for the genre.
+    \item \textbf{Least Polarizing Movies ($\|v_n\|_2 \in [0.89, 1.40]$)}: These are straightforward biographies, historical films, and crime dramas (\emph{Cobb}, \emph{Pirates of Silicon Valley}, \emph{Sea of Love}, \emph{Wait Until Dark}, \emph{The Counterfeiters}) that have narrow rating standard deviations ($\sigma(r) \in [0.70, 0.83]$) and receive steady, predictable ratings across all kinds of viewers.
+\end{itemize}
+
+\subsection{2D Genre Embeddings and Cold-Start Results}
+
+We first train the genre-informed model with $K=2$ latent dimensions on MovieLens-32M ($\text{RMSE}_{\text{train}} = 0.7927$, $\text{RMSE}_{\text{test}} = 0.8175$) and plot the $20$ learned genre vectors $f_g \in \mathbb{R}^2$ in \cref{fig:genre_2d_embeddings}. The genre locations match intuition and line up with the movie map from \cref{fig:movie_2d_embeddings}:
+\begin{itemize}
+    \item \emph{Action} $(-0.97, -0.05)$, \emph{Adventure} $(-0.39, +0.02)$, and \emph{Sci-Fi} sit on the left side where blockbuster franchises live.
+    \item \emph{Drama} $(+0.86, +0.27)$, \emph{Documentary} $(+0.79, 0.00)$, \emph{Romance}, and \emph{Film-Noir} $(+1.71, -0.90)$ sit on the right side where serious and classic films live.
+    \item \emph{Children} $(-1.19, -0.90)$ and \emph{Animation} sit together in the lower-left family region, while \emph{Horror} $(-0.13, -1.33)$ is pulled toward the bottom where dark/niche movies sit.
+\end{itemize}
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig9_genre_2d_embeddings.pdf}}
+\caption{2D genre trait vectors $f_g \in \mathbb{R}^2$ learned on MovieLens-32M ($K=2$, $18$ epochs, test RMSE $= 0.8175$). Circle size reflects the number of movies in each genre.}
+\label{fig:genre_2d_embeddings}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+Finally, to see how much the genre prior helps on rare and cold-start movies, we compare standard ALS against Genre-ALS at $K=16$ ($\lambda=1.0, \gamma=0.1, \tau=5.0, \tau_f=1.0$) on the full MovieLens-32M split and on a cold-start split of MovieLens-5M where $500$ movies ($73{,}217$ test ratings) have all of their training ratings hidden ($|\Omega_{\text{train}}^n| = 0$). \Cref{fig:genre_coldstart} and \cref{tab:genre_coldstart_results} break down the test RMSE by the number of training ratings per movie.
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig10_genre_als_coldstart.pdf}}
+\caption{Evaluation of the Genre-ALS model ($K=16$). \textbf{(a)} Monotonic decrease of the genre loss $\mathcal{L}_{\text{genre}}$ and test RMSE on MovieLens-32M (reaching $0.7790$). \textbf{(b)} Test RMSE grouped by movie training ratings $|\Omega_{\text{train}}^n|$, showing clear improvements on cold-start ($0$ ratings) and rare ($1\text{--}19$ ratings) movies.}
+\label{fig:genre_coldstart}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+\begin{table}[t]
+\caption{Test RMSE comparison between Standard ALS and Genre-ALS at $K=16$, grouped by the number of training ratings per movie $|\Omega_{\text{train}}^n|$.}
+\label{tab:genre_coldstart_results}
+\vskip 0.1in
+\begin{center}
+\begin{scriptsize}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Movie Group} $|\Omega_{\text{train}}^n|$ & \textbf{Test} $|\Omega|$ & \textbf{Std.\ ALS} & \textbf{Genre-ALS} & $\Delta\textbf{RMSE}$ \\
 
 \bibliography{references}
 \bibliographystyle{icml2023}
