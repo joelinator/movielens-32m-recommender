@@ -530,7 +530,155 @@ Finally, to see how much the genre prior helps on rare and cold-start movies, we
 \begin{tabular}{lrrrr}
 \toprule
 \textbf{Movie Group} $|\Omega_{\text{train}}^n|$ & \textbf{Test} $|\Omega|$ & \textbf{Std.\ ALS} & \textbf{Genre-ALS} & $\Delta\textbf{RMSE}$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Controlled Cold-Start Split ($K=16$)}} \\
+$0$ (Cold-Start) & $73,217$ & $0.9819$ & $\mathbf{0.9634}$ & $\mathbf{-0.0186}$ \\
+$1\text{--}4$ (Very Rare) & $9,304$ & $1.0661$ & $\mathbf{1.0422}$ & $\mathbf{-0.0238}$ \\
+$5\text{--}19$ (Rare) & $18,940$ & $0.8859$ & $\mathbf{0.8698}$ & $\mathbf{-0.0161}$ \\
+$20\text{--}99$ (Moderate) & $61,270$ & $0.8217$ & $\mathbf{0.8125}$ & $\mathbf{-0.0092}$ \\
+$\ge 100$ (Popular) & $836,823$ & $0.7827$ & $\mathbf{0.7820}$ & $\mathbf{-0.0007}$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Full MovieLens-32M Split ($K=16$)}} \\
+$1\text{--}4$ (Very Rare) & $18,533$ & $1.0237$ & $\mathbf{1.0026}$ & $\mathbf{-0.0212}$ \\
+$5\text{--}19$ (Rare) & $42,171$ & $0.8829$ & $\mathbf{0.8622}$ & $\mathbf{-0.0207}$ \\
+$20\text{--}99$ (Moderate) & $111,407$ & $0.8340$ & $\mathbf{0.8194}$ & $\mathbf{-0.0146}$ \\
+$\ge 100$ (Popular) & $6,219,001$ & $0.7767$ & $\mathbf{0.7767}$ & $-0.0000$ \\
+\textbf{All Test (32M)} & $\mathbf{6,395,897}$ & $0.7796$ & $\mathbf{0.7790}$ & $\mathbf{-0.0005}$ \\
+\bottomrule
+\end{tabular}
+\end{scriptsize}
+\end{center}
+\vskip -0.1in
+\end{table}
+
+As shown in \cref{tab:genre_coldstart_results}, the genre prior works exactly as intended:
+\begin{enumerate}
+    \item \textbf{Better Predictions on Cold-Start and Rare Movies}: When a movie has $0$ training ratings, standard ALS sets $v_n = \mathbf{0}$ and gets a test RMSE of $0.9819$. Genre-ALS uses the genre average $v_n = \bar{f}_n$ to match the movie's genres with each user's taste $u_m$, lowering the cold-start test RMSE by \textbf{$-$0.0186 stars} (to $0.9634$). On very rare movies ($1\text{--}4$ ratings) and rare movies ($5\text{--}19$ ratings), Genre-ALS lowers the test RMSE by \textbf{$-$0.0212} and \textbf{$-$0.0207 stars} on MovieLens-32M (and by $-0.0238$ and $-0.0161$ on the controlled benchmark).
+    \item \textbf{No Harm to Popular Movies}: For popular movies with $100+$ ratings, both models achieve the exact same RMSE ($0.7767$ on 32M), because thousands of user ratings outweigh the genre prior. Because $97.2\%$ of all test ratings in MovieLens-32M fall on popular movies with $\ge 100$ ratings, the overall test RMSE across the whole dataset shifts slightly from $0.7796$ to \textbf{0.7790}, while the gains on the long-tail catalog are substantial.
+\end{enumerate}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this report, we designed, implemented, and evaluated a complete matrix factorization recommender system on the MovieLens-32M dataset ($32{,}000{,}204$ ratings). By storing the sparse rating graph in dual CSR matrices ($\mathcal{S}_{\text{user}}$ and $\mathcal{S}_{\text{movie}}$) and parallelizing the in-place Cholesky normal-equation updates across CPU threads, we achieved a $69.6\times$ speedup over batched array solvers and trained a 16-dimensional model on $32$ million ratings in less than $3$ seconds per epoch. Our experiments showed that adding latent vectors improves test RMSE from $0.8563$ (biases only) to $0.7803$ ($K=16$), that proper regularization $\tau$ is essential to keep higher-rank models ($K=20$) from overfitting users with few ratings, and that 2D movie and genre embeddings organize films into clear, intuitive clusters. Finally, we showed that downweighting movie biases produces accurate recommendations for single-rating users, and that incorporating movie genres into the item prior significantly improves accuracy on cold-start and rarely rated movies.
 
 \bibliography{references}
 \bibliographystyle{icml2023}
+
+\newpage
+\appendix
+\onecolumn
+
+\section{Detailed Mathematical Derivations of ALS Updates}
+\label{app:derivations}
+
+In this appendix, we give the complete step-by-step derivations of the ALS coordinate updates for the bias-only model (\cref{sec:bias_model}), the matrix factorization model (\cref{sec:latent_als}), and the genre-informed model (\cref{sec:genre_model}).
+
+\subsection{Derivations for User and Movie Biases and Trait Vectors}
+
+Consider the general genre-informed loss function $\mathcal{L}_{\text{genre}}(\Theta, F)$ in \cref{eq:genre_als_objective}. Setting $f_g = \mathbf{0}$ recovers the standard matrix factorization loss $\mathcal{L}(\Theta)$ in \cref{eq:pmf_full_loss}, and setting $K = 0$ recovers the bias-only loss $\mathcal{L}(a,b)$ in \cref{eq:bias_objective}.
+
+\textbf{Proposition A.1 (User Bias and User Trait Vector Updates).}
+\emph{For any user $m \in \{1, \dots, M\}$ with training ratings $\Omega_m = \Omega_m^{\text{train}}$, holding all movie parameters $\{b_n, v_n\}_{n=1}^N$ fixed, the partial derivatives of $\mathcal{L}_{\text{genre}}$ with respect to $a_m \in \mathbb{R}$ and $u_m \in \mathbb{R}^K$ are:}
+\begin{align}
+\frac{\partial \mathcal{L}_{\text{genre}}}{\partial a_m} &= -\lambda \sum_{n \in \Omega_m} \left( r_{mn} - \mu - a_m - b_n - u_m^\top v_n \right) + \gamma a_m, \label{eq:app_grad_am} \\
+\nabla_{u_m} \mathcal{L}_{\text{genre}} &= -\lambda \sum_{n \in \Omega_m} \left( r_{mn} - \mu - a_m - b_n - u_m^\top v_n \right) v_n + \tau u_m. \label{eq:app_grad_um}
+\end{align}
+\emph{Setting $\partial \mathcal{L}_{\text{genre}} / \partial a_m = 0$ and $\nabla_{u_m} \mathcal{L}_{\text{genre}} = \mathbf{0}$ gives the exact update rules in \cref{eq:pmf_user_bias,eq:pmf_user_vec}. Furthermore, the Hessian matrix with respect to $u_m$ is}
+\begin{equation}
+\nabla_{u_m}^2 \mathcal{L}_{\text{genre}} = \lambda \sum_{n \in \Omega_m} v_n v_n^\top + \tau I_K \succeq \tau I_K \succ 0,
+\end{equation}
+\emph{which is strictly positive-definite whenever $\tau > 0$, ensuring a unique minimum.}
+
+\begin{proof}
+Keeping only the terms in \cref{eq:genre_als_objective} that depend on user $m$ gives:
+\begin{equation}
+\ell_m(a_m, u_m) = \frac{\lambda}{2} \sum_{n \in \Omega_m} \left( e_{mn}^{(-a_m)} - a_m \right)^2 + \frac{\gamma}{2} a_m^2 + \frac{\tau}{2} \|u_m\|_2^2,
+\end{equation}
+where $e_{mn}^{(-a_m)} = r_{mn} - \mu - b_n - u_m^\top v_n$. Taking the derivative with respect to $a_m$ and setting it to zero gives:
+\begin{equation}
+\frac{\partial \ell_m}{\partial a_m} = -\lambda \sum_{n \in \Omega_m} e_{mn}^{(-a_m)} + \left(\lambda |\Omega_m| + \gamma\right) a_m = 0 \iff a_m^* = \frac{\lambda \sum_{n \in \Omega_m} \left(r_{mn} - \mu - b_n - u_m^\top v_n\right)}{\lambda |\Omega_m| + \gamma}.
+\end{equation}
+Next, for $u_m$, let $e_{mn}^{(-u_m)} = r_{mn} - \mu - a_m - b_n$. Expanding the squared error gives:
+\begin{equation}
+\ell_m(u_m) = \frac{\lambda}{2} \sum_{n \in \Omega_m} \left( u_m^\top v_n v_n^\top u_m - 2 e_{mn}^{(-u_m)} v_n^\top u_m + (e_{mn}^{(-u_m)})^2 \right) + \frac{\tau}{2} u_m^\top I_K u_m.
+\end{equation}
+Taking the gradient with respect to $u_m$ and setting it to zero gives the linear system:
+\begin{equation}
+\left( \lambda \sum_{n \in \Omega_m} v_n v_n^\top + \tau I_K \right) u_m^* = \lambda \sum_{n \in \Omega_m} e_{mn}^{(-u_m)} v_n.
+\end{equation}
+Since each outer product $v_n v_n^\top$ is positive semi-definite ($x^\top v_n v_n^\top x = (v_n^\top x)^2 \ge 0$) and $\tau > 0$, the matrix $A_m = \lambda \sum_{n \in \Omega_m} v_n v_n^\top + \tau I_K$ is symmetric positive-definite and can always be factored via Cholesky decomposition $A_m = L_m L_m^\top$.
+\end{proof}
+
+\subsection{Derivations for Movie Trait Vectors with Genres and Genre Embeddings}
+
+\textbf{Proposition A.2 (Movie Vector Update with Genre Prior).}
+\emph{Holding user parameters $\{a_m, u_m\}_{m=1}^M$, movie biases $\{b_n\}_{n=1}^N$, and genre vectors $F = [f_1, \dots, f_G]^\top \in \mathbb{R}^{G \times K}$ fixed, the unique minimizer of $\mathcal{L}_{\text{genre}}$ with respect to $v_n \in \mathbb{R}^K$ is given by \cref{eq:genre_item_vec_update}.}
+
+\begin{proof}
+The terms of $\mathcal{L}_{\text{genre}}$ that depend on movie vector $v_n$ are:
+\begin{equation}
+\ell^n(v_n) = \frac{\lambda}{2} \sum_{m \in \Omega^n} \left( e_{mn}^{(-v_n)} - u_m^\top v_n \right)^2 + \frac{\tau}{2} \|v_n - \bar{f}_n\|_2^2,
+\end{equation}
+where $e_{mn}^{(-v_n)} = r_{mn} - \mu - a_m - b_n$ and $\bar{f}_n = |\mathcal{G}_n|^{-1/2} \sum_{g \in \mathcal{G}_n} f_g$. Taking the gradient with respect to $v_n$ and setting it to zero gives:
+\begin{equation}
+\nabla_{v_n} \ell^n(v_n) = -\lambda \sum_{m \in \Omega^n} \left( e_{mn}^{(-v_n)} - u_m^\top v_n \right) u_m + \tau (v_n - \bar{f}_n) = \mathbf{0}.
+\end{equation}
+Moving all terms that multiply $v_n$ to the left-hand side and constants to the right-hand side gives:
+\begin{equation}
+\left( \lambda \sum_{m \in \Omega^n} u_m u_m^\top + \tau I_K \right) v_n^* = \lambda \sum_{m \in \Omega^n} e_{mn}^{(-v_n)} u_m + \tau \bar{f}_n,
+\end{equation}
+which gives \cref{eq:genre_item_vec_update}.
+\end{proof}
+
+\textbf{Proposition A.3 (Genre Vector Update).}
+\emph{Holding the movie vectors $V = [v_1, \dots, v_N]^\top \in \mathbb{R}^{N \times K}$ fixed, the genre part of the loss function}
+\begin{equation}
+\mathcal{L}_F(F) = \frac{\tau}{2} \sum_{n=1}^N \left\| v_n - \frac{1}{\sqrt{|\mathcal{G}_n|}} \sum_{g \in \mathcal{G}_n} f_g \right\|_2^2 + \frac{\tau_f}{2} \sum_{g=1}^G \|f_g\|_2^2
+\end{equation}
+\emph{is minimized by $F^* = (\tau B^\top B + \tau_f I_G)^{-1} (\tau B^\top V)$ in \cref{eq:genre_matrix_update}, or for a single genre $g$ by \cref{eq:genre_coord_update}.}
+
+\begin{proof}
+Using the matrix $B \in \mathbb{R}^{N \times G}$ with $B_{ng} = |\mathcal{G}_n|^{-1/2}$ if $g \in \mathcal{G}_n$ and $0$ otherwise, row $n$ of $BF$ is $\bar{f}_n^\top$. Therefore we can write $\mathcal{L}_F(F)$ in matrix form as:
+\begin{equation}
+\mathcal{L}_F(F) = \frac{\tau}{2} \|V - B F\|_F^2 + \frac{\tau_f}{2} \|F\|_F^2 = \frac{1}{2} \operatorname{Tr}\!\left( \tau (V - BF)^\top (V - BF) + \tau_f F^\top F \right).
+\end{equation}
+Setting the matrix derivative $\nabla_F \mathcal{L}_F(F) = -\tau B^\top (V - BF) + \tau_f F = \mathbf{0}$ gives $(\tau B^\top B + \tau_f I_G) F^* = \tau B^\top V$. If instead we update one genre $g$ at a time with all other genres $g' \neq g$ fixed, we write $v_n - \bar{f}_n = \tilde{v}_n^{(-g)} - |\mathcal{G}_n|^{-1/2} f_g$ for each movie $n \in \mathcal{I}_g$, where $\tilde{v}_n^{(-g)} = v_n - |\mathcal{G}_n|^{-1/2} \sum_{g' \in \mathcal{G}_n \setminus \{g\}} f_{g'}$. Differentiating with respect to $f_g$ and setting to zero gives:
+\begin{equation}
+\nabla_{f_g} \mathcal{L}_F = -\tau \sum_{n \in \mathcal{I}_g} \frac{1}{\sqrt{|\mathcal{G}_n|}} \left( \tilde{v}_n^{(-g)} - \frac{1}{\sqrt{|\mathcal{G}_n|}} f_g \right) + \tau_f f_g = \mathbf{0} \iff \left( \tau \sum_{n \in \mathcal{I}_g} \frac{1}{|\mathcal{G}_n|} + \tau_f \right) f_g^* = \tau \sum_{n \in \mathcal{I}_g} \frac{1}{\sqrt{|\mathcal{G}_n|}} \tilde{v}_n^{(-g)},
+\end{equation}
+which gives \cref{eq:genre_coord_update}.
+\end{proof}
+
+\section{Time and Memory Complexity Comparison}
+\label{app:complexity}
+
+\Cref{tab:app_complexity} compares the time per epoch, floating-point operations (multiply-adds), and extra working memory required by each ALS solver:
+\begin{enumerate}
+    \item \textbf{Bias-Only ALS ($K=0$)}: Loops once over the user CSR matrix $\mathcal{S}_{\text{user}}$ ($2|\Omega|$ operations) and once over the movie CSR matrix $\mathcal{S}_{\text{movie}}$ ($2|\Omega|$ operations), using only a single running sum per thread.
+    \item \textbf{Batched Vectorized Solver}: For a batch of rows containing $|\Omega_{\text{batch}}|$ ratings, building all $K \times K$ outer products in memory at once takes $O(|\Omega_{\text{batch}}| K^2)$ bytes of temporary RAM ($0.3$ to $3.6$~GB per batch), which slows down execution due to memory allocation and cache misses.
+    \item \textbf{Parallel CSR In-Place Cholesky Solver}: Each of the $T$ CPU threads keeps a small $K \times K$ buffer ($8 K^2$ bytes) and a length-$K$ vector ($8 K$ bytes) in fast L1 cache. Accumulating the lower triangle takes $\frac{1}{2} K(K+1) |\Omega|$ multiply-adds across each half-sweep, and solving the Cholesky system takes $\frac{1}{6} K^3$ multiply-adds per user/movie, using under $32$~KB of extra RAM across all threads combined.
+\end{enumerate}
+
+\begin{table*}[h]
+\caption{Comparison of asymptotic time per epoch, floating-point operations, and extra working memory across ALS solvers.}
+\label{tab:app_complexity}
+\vskip 0.1in
+\begin{center}
+\begin{scriptsize}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llll}
+\toprule
+\textbf{Solver Type} & \textbf{Time Complexity / Epoch} & \textbf{Multiply-Adds / Epoch} & \textbf{Extra Working RAM} \\
+\midrule
+Bias-Only ALS ($K=0$) & $O(|\Omega| + M + N)$ & $2|\Omega| + 2(M+N)$ & $O(T)$ ($\le 1$~KB) \\
+Batched Vectorized ($K>0$) & $O(|\Omega| K^2 + (M+N) K^3)$ & $2|\Omega| K^2 + \frac{1}{3}(M+N) K^3$ & $O(|\Omega_{\text{batch}}| K^2)$ ($0.3\text{--}3.6$~GB) \\
+Parallel CSR Cholesky ($K>0$) & $O\!\left(\tfrac{1}{T}(|\Omega| K^2 + (M+N) K^3)\right)$ & $K(K+1)|\Omega| + \frac{1}{6}(M+N) K^3$ & $O(T K^2)$ ($\le 32$~KB) \\
+Genre-Prior CSR ($K>0$) & $O\!\left(\tfrac{1}{T}(|\Omega| K^2 + (M+N) K^3) + G^3\right)$ & $K(K+1)|\Omega| + \frac{1}{6}(M+N) K^3$ & $O(T K^2 + G^2)$ ($\le 36$~KB) \\
+\bottomrule
+\end{tabular}
+\end{scriptsize}
+\end{center}
+\end{table*}
+
 \end{document}
