@@ -1,0 +1,765 @@
+{
+  "k2_model": {
+    "train_rmse": 0.793334971103418,
+    "test_rmse": 0.8180464582774873,
+    "landmarks": [
+      {
+        "label": "LotR: Fellowship (2001)",
+        "movie_idx": 339,
+        "x": 0.3540990352630615,
+        "y": 1.2677395343780518,
+        "count": 73122
+      },
+      {
+        "label": "LotR: Return of the King (2003)",
+        "movie_idx": 613,
+        "x": 0.24573945999145508,
+        "y": 1.3695955276489258,
+        "count": 67449
+      },
+      {
+        "label": "The Matrix (1999)",
+        "movie_idx": 514,
+        "x": 0.3344181776046753,
+        "y": 0.9270877838134766,
+        "count": 93808
+      },
+      {
+        "label": "Star Wars IV (1977)",
+        "movie_idx": 15,
+        "x": 0.30757394433021545,
+        "y": -0.6216579675674438,
+        "count": 85010
+      },
+      {
+        "label": "Pulp Fiction (1994)",
+        "movie_idx": 159,
+        "x": 2.136460304260254,
+        "y": 0.3905220627784729,
+        "count": 98409
+      },
+      {
+        "label": "The Godfather (1972)",
+        "movie_idx": 218,
+        "x": 1.7179237604141235,
+        "y": 0.42995908856391907,
+        "count": 66440
+      },
+      {
+        "label": "Shawshank Redemption (1994)",
+        "movie_idx": 161,
+        "x": 0.5107601881027222,
+        "y": 1.4501018524169922,
+        "count": 102929
+      },
+      {
+        "label": "Toy Story (1995)",
+        "movie_idx": 415,
+        "x": 0.08694036304950714,
+        "y": -0.6608712673187256,
+        "count": 68997
+      },
+      {
+        "label": "The Lion King (1994)",
+        "movie_idx": 168,
+        "x": -0.5801819562911987,
+        "y": -0.19363102316856384,
+        "count": 51518
+      },
+      {
+        "label": "Spirited Away (2001)",
+        "movie_idx": 2532,
+        "x": 1.3579643964767456,
+        "y": 0.16948017477989197,
+        "count": 33333
+      },
+      {
+        "label": "Twilight (2008)",
+        "movie_idx": 1032,
+        "x": -2.272557497024536,
+        "y": 1.247378945350647,
+        "count": 8882
+      },
+      {
+        "label": "Dumb & Dumber (1994)",
+        "movie_idx": 153,
+        "x": -0.4699704647064209,
+        "y": -3.659619092941284,
+        "count": 36802
+      },
+      {
+        "label": "Saw (2004)",
+        "movie_idx": 408,
+        "x": -0.44710156321525574,
+        "y": -0.41182053089141846,
+        "count": 12829
+      },
+      {
+        "label": "Blair Witch Project (1999)",
+        "movie_idx": 309,
+        "x": 1.051393985748291,
+        "y": -0.9363415837287903,
+        "count": 22780
+      },
+      {
+        "label": "Fargo (1996)",
+        "movie_idx": 26,
+        "x": 2.155686855316162,
+        "y": 0.24048854410648346,
+        "count": 58031
+      },
+      {
+        "label": "Inception (2010)",
+        "movie_idx": 370,
+        "x": 0.3873752951622009,
+        "y": 2.2236733436584473,
+        "count": 57931
+      },
+      {
+        "label": "The Dark Knight (2008)",
+        "movie_idx": 369,
+        "x": 0.37598249316215515,
+        "y": 1.6629970073699951,
+        "count": 59334
+      },
+      {
+        "label": "Titanic (1997)",
+        "movie_idx": 88,
+        "x": -1.1609700918197632,
+        "y": 0.9427111148834229,
+        "count": 45767
+      }
+    ]
+  },
+  "k16_model": {
+    "train_rmse": 0.6749253514894917,
+    "test_rmse": 0.7795547439113487,
+    "mean_epoch_time_sec": 2.4803829518888656
+  },
+  "dummy_user_lotr": {
+    "seed_title": "Lord of the Rings: The Fellowship of the Ring, The (2001)",
+    "inferred_bias": 0.7024431366772727,
+    "inferred_norm": 0.02809757925570011,
+    "recs_full_bias": [
+      {
+        "rank": 1,
+        "movie_idx": 62078,
+        "movie_id": 215541,
+        "title": "Hello & Goodbye (2018)",
+        "genres": "Drama|Romance",
+        "score": 3.2663536071777344,
+        "dot_similarity": -6.025897164363414e-05,
+        "movie_bias": 3.266413927078247,
+        "rating_count": 2
+      },
+      {
+        "rank": 2,
+        "movie_idx": 70093,
+        "movie_id": 225435,
+        "title": "Wesley (2009)",
+        "genres": "(no genres listed)",
+        "score": 3.1919939517974854,
+        "dot_similarity": -0.00029034516774117947,
+        "movie_bias": 3.192284345626831,
+        "rating_count": 1
+      },
+      {
+        "rank": 3,
+        "movie_idx": 29463,
+        "movie_id": 240070,
+        "title": "SpongeBob SquarePants: Heroes of Bikini Bottom (2011)",
+        "genres": "Animation",
+        "score": 2.999668598175049,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 4,
+        "movie_idx": 29497,
+        "movie_id": 270306,
+        "title": "WWE: The Triumph and Tragedy of World Class Championship Wrestling (2007)",
+        "genres": "Action|Documentary",
+        "score": 2.999668598175049,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 5,
+        "movie_idx": 29462,
+        "movie_id": 240054,
+        "title": "SpongeBob SquarePants: Tide and Seek",
+        "genres": "Animation|Comedy",
+        "score": 2.999668598175049,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 6,
+        "movie_idx": 44824,
+        "movie_id": 216789,
+        "title": "Destination: Pluto Beyond the Flyby (2016)",
+        "genres": "Documentary",
+        "score": 2.9107565879821777,
+        "dot_similarity": 0.00020963586575817317,
+        "movie_bias": 2.9105470180511475,
+        "rating_count": 1
+      },
+      {
+        "rank": 7,
+        "movie_idx": 71981,
+        "movie_id": 274047,
+        "title": "The Sound of Violet (2022)",
+        "genres": "Comedy|Drama|Romance",
+        "score": 2.879838466644287,
+        "dot_similarity": -4.13246380048804e-05,
+        "movie_bias": 2.8798797130584717,
+        "rating_count": 1
+      },
+      {
+        "rank": 8,
+        "movie_idx": 79098,
+        "movie_id": 235787,
+        "title": "A Dramatic Film (2019)",
+        "genres": "Documentary",
+        "score": 2.780405282974243,
+        "dot_similarity": 7.700668356847018e-05,
+        "movie_bias": 2.7803282737731934,
+        "rating_count": 1
+      },
+      {
+        "rank": 9,
+        "movie_idx": 56330,
+        "movie_id": 138592,
+        "title": "Ravager (1997)",
+        "genres": "Horror|Sci-Fi",
+        "score": 2.7769503593444824,
+        "dot_similarity": -2.8876980650238693e-05,
+        "movie_bias": 2.7769792079925537,
+        "rating_count": 1
+      },
+      {
+        "rank": 10,
+        "movie_idx": 70094,
+        "movie_id": 225437,
+        "title": "Crazy Bible (2018)",
+        "genres": "(no genres listed)",
+        "score": 2.719632625579834,
+        "dot_similarity": -0.0002473836357239634,
+        "movie_bias": 2.7198801040649414,
+        "rating_count": 1
+      }
+    ],
+    "recs_small_bias_unfiltered": [
+      {
+        "rank": 1,
+        "movie_idx": 613,
+        "movie_id": 7153,
+        "title": "Lord of the Rings: The Return of the King, The (2003)",
+        "genres": "Action|Adventure|Drama|Fantasy",
+        "score": 0.24248327314853668,
+        "dot_similarity": 0.2169734239578247,
+        "movie_bias": 0.5101969242095947,
+        "rating_count": 54037
+      },
+      {
+        "rank": 2,
+        "movie_idx": 596,
+        "movie_id": 5952,
+        "title": "Lord of the Rings: The Two Towers, The (2002)",
+        "genres": "Adventure|Fantasy",
+        "score": 0.2382400631904602,
+        "dot_similarity": 0.21431882679462433,
+        "movie_bias": 0.4784247577190399,
+        "rating_count": 54016
+      },
+      {
+        "rank": 3,
+        "movie_idx": 62078,
+        "movie_id": 215541,
+        "title": "Hello & Goodbye (2018)",
+        "genres": "Drama|Romance",
+        "score": 0.16326044499874115,
+        "dot_similarity": -6.025897164363414e-05,
+        "movie_bias": 3.266413927078247,
+        "rating_count": 2
+      },
+      {
+        "rank": 4,
+        "movie_idx": 70093,
+        "movie_id": 225435,
+        "title": "Wesley (2009)",
+        "genres": "(no genres listed)",
+        "score": 0.15932387113571167,
+        "dot_similarity": -0.00029034516774117947,
+        "movie_bias": 3.192284345626831,
+        "rating_count": 1
+      },
+      {
+        "rank": 5,
+        "movie_idx": 888,
+        "movie_id": 98809,
+        "title": "Hobbit: An Unexpected Journey, The (2012)",
+        "genres": "Adventure|Fantasy|IMAX",
+        "score": 0.15771183371543884,
+        "dot_similarity": 0.15900862216949463,
+        "movie_bias": -0.02593579702079296,
+        "rating_count": 12821
+      },
+      {
+        "rank": 6,
+        "movie_idx": 29463,
+        "movie_id": 240070,
+        "title": "SpongeBob SquarePants: Heroes of Bikini Bottom (2011)",
+        "genres": "Animation",
+        "score": 0.15024691820144653,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 7,
+        "movie_idx": 29462,
+        "movie_id": 240054,
+        "title": "SpongeBob SquarePants: Tide and Seek",
+        "genres": "Animation|Comedy",
+        "score": 0.15024691820144653,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 8,
+        "movie_idx": 29497,
+        "movie_id": 270306,
+        "title": "WWE: The Triumph and Tragedy of World Class Championship Wrestling (2007)",
+        "genres": "Action|Documentary",
+        "score": 0.15024691820144653,
+        "dot_similarity": 0.0002773521700873971,
+        "movie_bias": 2.9993913173675537,
+        "rating_count": 1
+      },
+      {
+        "rank": 9,
+        "movie_idx": 902,
+        "movie_id": 106489,
+        "title": "Hobbit: The Desolation of Smaug, The (2013)",
+        "genres": "Adventure|Fantasy|IMAX",
+        "score": 0.14926166832447052,
+        "dot_similarity": 0.15498244762420654,
+        "movie_bias": -0.11441544443368912,
+        "rating_count": 9701
+      },
+      {
+        "rank": 10,
+        "movie_idx": 44824,
+        "movie_id": 216789,
+        "title": "Destination: Pluto Beyond the Flyby (2016)",
+        "genres": "Documentary",
+        "score": 0.14573697745800018,
+        "dot_similarity": 0.00020963586575817317,
+        "movie_bias": 2.9105470180511475,
+        "rating_count": 1
+      }
+    ],
+    "recs_small_bias_filtered_100": [
+      {
+        "rank": 1,
+        "movie_idx": 613,
+        "movie_id": 7153,
+        "title": "Lord of the Rings: The Return of the King, The (2003)",
+        "genres": "Action|Adventure|Drama|Fantasy",
+        "score": 0.24248327314853668,
+        "dot_similarity": 0.2169734239578247,
+        "movie_bias": 0.5101969242095947,
+        "rating_count": 54037
+      },
+      {
+        "rank": 2,
+        "movie_idx": 596,
+        "movie_id": 5952,
+        "title": "Lord of the Rings: The Two Towers, The (2002)",
+        "genres": "Adventure|Fantasy",
+        "score": 0.2382400631904602,
+        "dot_similarity": 0.21431882679462433,
+        "movie_bias": 0.4784247577190399,
+        "rating_count": 54016
+      },
+      {
+        "rank": 3,
+        "movie_idx": 888,
+        "movie_id": 98809,
+        "title": "Hobbit: An Unexpected Journey, The (2012)",
+        "genres": "Adventure|Fantasy|IMAX",
+        "score": 0.15771183371543884,
+        "dot_similarity": 0.15900862216949463,
+        "movie_bias": -0.02593579702079296,
+        "rating_count": 12821
+      },
+      {
+        "rank": 4,
+        "movie_idx": 902,
+        "movie_id": 106489,
+        "title": "Hobbit: The Desolation of Smaug, The (2013)",
+        "genres": "Adventure|Fantasy|IMAX",
+        "score": 0.14926166832447052,
+        "dot_similarity": 0.15498244762420654,
+        "movie_bias": -0.11441544443368912,
+        "rating_count": 9701
+      },
+      {
+        "rank": 5,
+        "movie_idx": 1152,
+        "movie_id": 118696,
+        "title": "The Hobbit: The Battle of the Five Armies (2014)",
+        "genres": "Adventure|Fantasy",
+        "score": 0.14043623208999634,
+        "dot_similarity": 0.15228231251239777,
+        "movie_bias": -0.236921489238739,
+        "rating_count": 6951
+      },
+      {
+        "rank": 6,
+        "movie_idx": 8,
+        "movie_id": 110,
+        "title": "Braveheart (1995)",
+        "genres": "Action|Drama|War",
+        "score": 0.12450644373893738,
+        "dot_similarity": 0.11139580607414246,
+        "movie_bias": 0.2622128129005432,
+        "rating_count": 55834
+      },
+      {
+        "rank": 7,
+        "movie_idx": 1441,
+        "movie_id": 88125,
+        "title": "Harry Potter and the Deathly Hallows: Part 2 (2011)",
+        "genres": "Action|Adventure|Drama|Fantasy|Mystery|IMAX",
+        "score": 0.11673230677843094,
+        "dot_similarity": 0.11098086833953857,
+        "movie_bias": 0.11502879112958908,
+        "rating_count": 16242
+      },
+      {
+        "rank": 8,
+        "movie_idx": 1439,
+        "movie_id": 69844,
+        "title": "Harry Potter and the Half-Blood Prince (2009)",
+        "genres": "Adventure|Fantasy|Mystery|Romance|IMAX",
+        "score": 0.11501967906951904,
+        "dot_similarity": 0.11407399922609329,
+        "movie_bias": 0.01891355589032173,
+        "rating_count": 16869
+      },
+      {
+        "rank": 9,
+        "movie_idx": 749,
+        "movie_id": 54001,
+        "title": "Harry Potter and the Order of the Phoenix (2007)",
+        "genres": "Adventure|Drama|Fantasy|IMAX",
+        "score": 0.11409323662519455,
+        "dot_similarity": 0.11378881335258484,
+        "movie_bias": 0.006088476628065109,
+        "rating_count": 16841
+      },
+      {
+        "rank": 10,
+        "movie_idx": 628,
+        "movie_id": 8368,
+        "title": "Harry Potter and the Prisoner of Azkaban (2004)",
+        "genres": "Adventure|Fantasy|IMAX",
+        "score": 0.11400043219327927,
+        "dot_similarity": 0.1062721312046051,
+        "movie_bias": 0.1545659601688385,
+        "rating_count": 25037
+      }
+    ]
+  },
+  "dummy_user_toystory": {
+    "recs_filtered_100": [
+      {
+        "rank": 1,
+        "movie_idx": 3080,
+        "movie_id": 78499,
+        "title": "Toy Story 3 (2010)",
+        "genres": "Adventure|Animation|Children|Comedy|Fantasy|IMAX",
+        "score": 0.16580723226070404,
+        "dot_similarity": 0.15792708098888397,
+        "movie_bias": 0.15760301053524017,
+        "rating_count": 16240
+      },
+      {
+        "rank": 2,
+        "movie_idx": 1287,
+        "movie_id": 3114,
+        "title": "Toy Story 2 (1999)",
+        "genres": "Adventure|Animation|Children|Comedy|Fantasy",
+        "score": 0.16550101339817047,
+        "dot_similarity": 0.160668283700943,
+        "movie_bias": 0.09665452688932419,
+        "rating_count": 26093
+      },
+      {
+        "rank": 3,
+        "movie_idx": 600,
+        "movie_id": 6377,
+        "title": "Finding Nemo (2003)",
+        "genres": "Adventure|Animation|Children|Comedy",
+        "score": 0.14934317767620087,
+        "dot_similarity": 0.1367882639169693,
+        "movie_bias": 0.2510983943939209,
+        "rating_count": 36923
+      },
+      {
+        "rank": 4,
+        "movie_idx": 1248,
+        "movie_id": 8961,
+        "title": "Incredibles, The (2004)",
+        "genres": "Action|Adventure|Animation|Children|Comedy",
+        "score": 0.14817818999290466,
+        "dot_similarity": 0.1341530680656433,
+        "movie_bias": 0.2805023491382599,
+        "rating_count": 33178
+      },
+      {
+        "rank": 5,
+        "movie_idx": 786,
+        "movie_id": 60069,
+        "title": "WALL\u00b7E (2008)",
+        "genres": "Adventure|Animation|Children|Romance|Sci-Fi",
+        "score": 0.14621037244796753,
+        "dot_similarity": 0.1303139477968216,
+        "movie_bias": 0.3179284334182739,
+        "rating_count": 31941
+      }
+    ]
+  },
+  "polarizing_movies_min1000": {
+    "most_polarizing": [
+      {
+        "rank": 1,
+        "movie_idx": 583,
+        "movie_id": 5378,
+        "title": "Star Wars: Episode II - Attack of the Clones (2002)",
+        "genres": "Action|Adventure|Sci-Fi|IMAX",
+        "vector_norm": 7.999592304229736,
+        "movie_bias": -0.5765113234519958,
+        "rating_count": 21907,
+        "rating_std": 1.1457983255386353
+      },
+      {
+        "rank": 2,
+        "movie_idx": 655,
+        "movie_id": 33493,
+        "title": "Star Wars: Episode III - Revenge of the Sith (2005)",
+        "genres": "Action|Adventure|Sci-Fi",
+        "vector_norm": 7.818849563598633,
+        "movie_bias": -0.26648464798927307,
+        "rating_count": 19751,
+        "rating_std": 1.12388014793396
+      },
+      {
+        "rank": 3,
+        "movie_idx": 332,
+        "movie_id": 2628,
+        "title": "Star Wars: Episode I - The Phantom Menace (1999)",
+        "genres": "Action|Adventure|Sci-Fi",
+        "vector_norm": 7.753544330596924,
+        "movie_bias": -0.563776433467865,
+        "rating_count": 30338,
+        "rating_std": 1.142579436302185
+      },
+      {
+        "rank": 4,
+        "movie_idx": 153,
+        "movie_id": 231,
+        "title": "Dumb & Dumber (Dumb and Dumber) (1994)",
+        "genres": "Adventure|Comedy",
+        "vector_norm": 7.7317795753479,
+        "movie_bias": -0.6288878321647644,
+        "rating_count": 29483,
+        "rating_std": 1.204342246055603
+      },
+      {
+        "rank": 5,
+        "movie_idx": 613,
+        "movie_id": 7153,
+        "title": "Lord of the Rings: The Return of the King, The (2003)",
+        "genres": "Action|Adventure|Drama|Fantasy",
+        "vector_norm": 7.729834079742432,
+        "movie_bias": 0.5101969242095947,
+        "rating_count": 54037,
+        "rating_std": 1.010904312133789
+      },
+      {
+        "rank": 6,
+        "movie_idx": 309,
+        "movie_id": 2710,
+        "title": "Blair Witch Project, The (1999)",
+        "genres": "Drama|Horror|Thriller",
+        "vector_norm": 7.632165908813477,
+        "movie_bias": -0.7024669051170349,
+        "rating_count": 18180,
+        "rating_std": 1.227565050125122
+      },
+      {
+        "rank": 7,
+        "movie_idx": 596,
+        "movie_id": 5952,
+        "title": "Lord of the Rings: The Two Towers, The (2002)",
+        "genres": "Adventure|Fantasy",
+        "vector_norm": 7.6319427490234375,
+        "movie_bias": 0.4784247577190399,
+        "rating_count": 54016,
+        "rating_std": 0.999800980091095
+      },
+      {
+        "rank": 8,
+        "movie_idx": 15,
+        "movie_id": 260,
+        "title": "Star Wars: Episode IV - A New Hope (1977)",
+        "genres": "Action|Adventure|Sci-Fi",
+        "vector_norm": 7.556925296783447,
+        "movie_bias": 0.38507184386253357,
+        "rating_count": 67968,
+        "rating_std": 0.9884417057037354
+      },
+      {
+        "rank": 9,
+        "movie_idx": 1439,
+        "movie_id": 69844,
+        "title": "Harry Potter and the Half-Blood Prince (2009)",
+        "genres": "Adventure|Fantasy|Mystery|Romance|IMAX",
+        "vector_norm": 7.553682804107666,
+        "movie_bias": 0.01891355589032173,
+        "rating_count": 16869,
+        "rating_std": 1.0069239139556885
+      },
+      {
+        "rank": 10,
+        "movie_idx": 339,
+        "movie_id": 4993,
+        "title": "Lord of the Rings: The Fellowship of the Ring, The (2001)",
+        "genres": "Adventure|Fantasy",
+        "vector_norm": 7.542572975158691,
+        "movie_bias": 0.5191240310668945,
+        "rating_count": 58491,
+        "rating_std": 1.0079697370529175
+      }
+    ],
+    "least_polarizing": [
+      {
+        "rank": 1,
+        "movie_idx": 5169,
+        "movie_id": 354,
+        "title": "Cobb (1994)",
+        "genres": "Drama",
+        "vector_norm": 0.8922879099845886,
+        "movie_bias": -0.2658783197402954,
+        "rating_count": 1023,
+        "rating_std": 0.8249595761299133
+      },
+      {
+        "rank": 2,
+        "movie_idx": 4665,
+        "movie_id": 8581,
+        "title": "Pirates of Silicon Valley (1999)",
+        "genres": "Documentary|Drama",
+        "vector_norm": 1.1193878650665283,
+        "movie_bias": 0.14372046291828156,
+        "rating_count": 1061,
+        "rating_std": 0.7777745127677917
+      },
+      {
+        "rank": 3,
+        "movie_idx": 986,
+        "movie_id": 4661,
+        "title": "Sea of Love (1989)",
+        "genres": "Crime|Drama|Thriller",
+        "vector_norm": 1.2484136819839478,
+        "movie_bias": 0.03812989965081215,
+        "rating_count": 1038,
+        "rating_std": 0.7571334838867188
+      },
+      {
+        "rank": 4,
+        "movie_idx": 10051,
+        "movie_id": 52042,
+        "title": "Black Book (Zwartboek) (2006)",
+        "genres": "Drama|Thriller|War",
+        "vector_norm": 1.2630318403244019,
+        "movie_bias": 0.42027410864830017,
+        "rating_count": 1014,
+        "rating_std": 0.76693195104599
+      },
+      {
+        "rank": 5,
+        "movie_idx": 8127,
+        "movie_id": 2670,
+        "title": "Run Silent Run Deep (1958)",
+        "genres": "War",
+        "vector_norm": 1.3467068672180176,
+        "movie_bias": 0.21106868982315063,
+        "rating_count": 1089,
+        "rating_std": 0.7494339346885681
+      },
+      {
+        "rank": 6,
+        "movie_idx": 5297,
+        "movie_id": 6639,
+        "title": "Wait Until Dark (1967)",
+        "genres": "Drama|Thriller",
+        "vector_norm": 1.354130744934082,
+        "movie_bias": 0.41096705198287964,
+        "rating_count": 1132,
+        "rating_std": 0.74778151512146
+      },
+      {
+        "rank": 7,
+        "movie_idx": 2871,
+        "movie_id": 36527,
+        "title": "Proof (2005)",
+        "genres": "Drama",
+        "vector_norm": 1.3656114339828491,
+        "movie_bias": -0.0011490980396047235,
+        "rating_count": 1001,
+        "rating_std": 0.8336164951324463
+      },
+      {
+        "rank": 8,
+        "movie_idx": 3364,
+        "movie_id": 53550,
+        "title": "Rescue Dawn (2006)",
+        "genres": "Action|Adventure|Drama|War",
+        "vector_norm": 1.3707139492034912,
+        "movie_bias": 0.1189398467540741,
+        "rating_count": 1316,
+        "rating_std": 0.7005224823951721
+      },
+      {
+        "rank": 9,
+        "movie_idx": 6205,
+        "movie_id": 142448,
+        "title": "Everest (2015)",
+        "genres": "Adventure|Drama|Thriller",
+        "vector_norm": 1.3733086585998535,
+        "movie_bias": -0.06053266301751137,
+        "rating_count": 1252,
+        "rating_std": 0.8234386444091797
+      },
+      {
+        "rank": 10,
+        "movie_idx": 5867,
+        "movie_id": 58303,
+        "title": "Counterfeiters, The (Die F\u00e4lscher) (2007)",
+        "genres": "Crime|Drama|War",
+        "vector_norm": 1.3982609510421753,
+        "movie_bias": 0.4342866837978363,
+        "rating_count": 1131,
+        "rating_std": 0.6951865553855896
+      }
+    ]
+  }
+}
