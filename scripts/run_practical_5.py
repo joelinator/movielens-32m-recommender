@@ -222,72 +222,90 @@ def main() -> None:
         alpha=0.18,
         color="#888888",
         edgecolors="none",
-        label=r"Movie Genre Prior Centroids $\bar{v}_n$",
+        label=r"Priors $\bar{v}_n$",
         rasterized=True,
     )
 
     # Group genres by thematic family for visual clarity
     family_map = {
-        "Drama": ("Serious / Narrative", "#1b9e77", "o"),
-        "Documentary": ("Serious / Narrative", "#1b9e77", "o"),
-        "Film-Noir": ("Serious / Narrative", "#1b9e77", "o"),
-        "War": ("Serious / Narrative", "#1b9e77", "o"),
-        "Crime": ("Serious / Narrative", "#1b9e77", "o"),
-        "Mystery": ("Serious / Narrative", "#1b9e77", "o"),
-        "Action": ("Action / Speculative / Horror", "#d95f02", "^"),
-        "Adventure": ("Action / Speculative / Horror", "#d95f02", "^"),
-        "Sci-Fi": ("Action / Speculative / Horror", "#d95f02", "^"),
-        "Horror": ("Action / Speculative / Horror", "#d95f02", "^"),
-        "Thriller": ("Action / Speculative / Horror", "#d95f02", "^"),
-        "Fantasy": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Animation": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Children": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Comedy": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Romance": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Musical": ("Family / Light / Musical", "#1f4e78", "s"),
-        "Western": ("Other / Specialized", "#7570b3", "D"),
-        "IMAX": ("Other / Specialized", "#7570b3", "D"),
-        "(no genres listed)": ("Other / Specialized", "#7570b3", "D"),
+        "Drama": ("Drama / Crime", "#1b9e77", "o"),
+        "Documentary": ("Drama / Crime", "#1b9e77", "o"),
+        "Film-Noir": ("Drama / Crime", "#1b9e77", "o"),
+        "War": ("Drama / Crime", "#1b9e77", "o"),
+        "Crime": ("Drama / Crime", "#1b9e77", "o"),
+        "Mystery": ("Drama / Crime", "#1b9e77", "o"),
+        "Action": ("Action / Sci-Fi", "#d95f02", "^"),
+        "Adventure": ("Action / Sci-Fi", "#d95f02", "^"),
+        "Sci-Fi": ("Action / Sci-Fi", "#d95f02", "^"),
+        "Horror": ("Action / Sci-Fi", "#d95f02", "^"),
+        "Thriller": ("Action / Sci-Fi", "#d95f02", "^"),
+        "Fantasy": ("Family / Light", "#1f4e78", "s"),
+        "Animation": ("Family / Light", "#1f4e78", "s"),
+        "Children": ("Family / Light", "#1f4e78", "s"),
+        "Comedy": ("Family / Light", "#1f4e78", "s"),
+        "Romance": ("Family / Light", "#1f4e78", "s"),
+        "Musical": ("Family / Light", "#1f4e78", "s"),
+        "Western": ("Other", "#7570b3", "D"),
+        "IMAX": ("Other", "#7570b3", "D"),
+        "(no genres listed)": ("Other", "#7570b3", "D"),
+    }
+
+    text_genres = {
+        "Drama": (0.85, 0.36),
+        "Crime": (0.50, 0.36),
+        "Film-Noir": (0.48, -0.02),
+        "Documentary": (0.98, 0.08),
+        "Sci-Fi": (-0.68, 0.88),
+        "Action": (-0.42, 0.82),
+        "Horror": (-0.72, -0.58),
+        "Children": (-0.72, -0.18),
+        "Animation": (-0.18, 0.45),
+        "Comedy": (-0.18, -0.62),
     }
 
     plotted_families = set()
     genre_coords = []
     for g_id, g_name in enumerate(meta_full.genre_names):
         fam_label, col, mk = family_map.get(
-            g_name, ("Other / Specialized", "#7570b3", "D")
+            g_name, ("Other", "#7570b3", "D")
         )
         gx, gy = float(f2d[g_id, 0]), float(f2d[g_id, 1])
         lbl = fam_label if fam_label not in plotted_families else None
         if lbl is not None:
             plotted_families.add(fam_label)
+        is_labeled = g_name in text_genres
         ax.scatter(
             [gx],
             [gy],
-            s=52,
+            s=48 if is_labeled else 24,
             color=col,
             marker=mk,
-            edgecolors="black",
-            linewidth=0.6,
-            zorder=5,
+            edgecolors="black" if is_labeled else "none",
+            linewidth=0.6 if is_labeled else 0.0,
+            alpha=1.0 if is_labeled else 0.55,
+            zorder=5 if is_labeled else 3,
             label=lbl,
         )
-        dx = 0.015 if gx >= 0 else -0.015
-        dy = 0.015 if g_id % 2 == 0 else -0.022
-        ax.annotate(
-            g_name,
-            xy=(gx, gy),
-            xytext=(gx + dx, gy + dy),
-            fontsize=8.0,
-            fontweight="bold",
-            bbox=dict(
-                boxstyle="round,pad=0.14",
-                fc="white",
-                ec=col,
-                alpha=0.88,
-                lw=0.5,
-            ),
-            zorder=6,
-        )
+        if is_labeled:
+            tx, ty = text_genres[g_name]
+            ax.annotate(
+                g_name,
+                xy=(gx, gy),
+                xytext=(tx, ty),
+                fontsize=7.5,
+                fontweight="bold",
+                ha="center",
+                va="center",
+                bbox=dict(
+                    boxstyle="round,pad=0.16",
+                    fc="white",
+                    ec=col,
+                    alpha=0.92,
+                    lw=0.45,
+                ),
+                arrowprops=dict(arrowstyle="-", color="0.35", lw=0.55, shrinkA=0, shrinkB=2),
+                zorder=6,
+            )
         genre_coords.append(
             {
                 "genre": g_name,
@@ -303,9 +321,11 @@ def main() -> None:
 
     ax.axhline(0.0, color="gray", linestyle=":", linewidth=0.8)
     ax.axvline(0.0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlabel(r"Genre Latent Trait Dimension 1 ($f_{g,1}$)")
-    ax.set_ylabel(r"Genre Latent Trait Dimension 2 ($f_{g,2}$)")
-    ax.legend(loc="best", frameon=True)
+    ax.set_xlim(-1.05, 1.35)
+    ax.set_ylim(-0.92, 1.12)
+    ax.set_xlabel(r"Dim. 1 ($f_{g,1}$)")
+    ax.set_ylabel(r"Dim. 2 ($f_{g,2}$)")
+    ax.legend(loc="lower right", frameon=True, facecolor="white", framealpha=0.9, fontsize=7.2)
 
     fig.tight_layout()
     fig9_path = figures_dir / "fig9_genre_2d_embeddings.pdf"
@@ -483,7 +503,7 @@ def main() -> None:
         marker="o",
         markersize=3.5,
         linewidth=1.5,
-        label=r"32M Genre-ALS $\mathcal{L}_{\mathrm{genre}}$",
+        label=r"Loss $\mathcal{L}$",
     )
     ax1_twin = ax1.twinx()
     ax1_twin.plot(
@@ -492,7 +512,7 @@ def main() -> None:
         color="#d95f02",
         linestyle="-.",
         linewidth=1.6,
-        label="32M Genre-ALS Test RMSE",
+        label="Test RMSE",
     )
     ax1_twin.plot(
         iters,
@@ -500,17 +520,18 @@ def main() -> None:
         color="#1b9e77",
         linestyle="--",
         linewidth=1.4,
-        label="32M Genre-ALS Train RMSE",
+        label="Train RMSE",
     )
     ax1_twin.grid(False)
-    ax1.set_xlabel("(a) ALS Iteration $t$")
-    ax1.set_ylabel(r"Regularized Loss $\mathcal{L}_{\mathrm{genre}}$ ($\times 10^6$)")
-    ax1_twin.set_ylabel("32M RMSE (Stars)")
+    ax1.set_xlabel("(a) Iter. $t$")
+    ax1.set_ylabel(r"Loss $\mathcal{L}$ ($\times 10^6$)")
+    ax1_twin.set_ylabel("RMSE")
     l1, lab1 = ax1.get_legend_handles_labels()
     l2, lab2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(l1 + l2, lab1 + lab2, loc="upper right", fontsize=7.2)
+    ax1.legend(l1 + l2, lab1 + lab2, loc="upper right", fontsize=7.2, frameon=False)
 
     x_pos = np.arange(len(bucket_names))
+    short_buckets = ["0 (Cold)", "1-4", "5-19", "20-99", "100+"]
     width = 0.36
     ax2.bar(
         x_pos - width / 2,
@@ -519,7 +540,7 @@ def main() -> None:
         color="#7570b3",
         edgecolor="black",
         linewidth=0.4,
-        label="Standard PMF (Zero Prior)",
+        label="Std. ALS",
     )
     ax2.bar(
         x_pos + width / 2,
@@ -528,14 +549,14 @@ def main() -> None:
         color="#1b9e77",
         edgecolor="black",
         linewidth=0.4,
-        label=r"Genre-ALS ($\bar{v}_n$ Prior)",
+        label="Genre-ALS",
     )
     ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(bucket_names, rotation=18)
+    ax2.set_xticklabels(short_buckets, rotation=15)
     ax2.set_ylim(0.75, max(std_bucket_rmse) + 0.04)
-    ax2.set_xlabel(r"(b) Movie Training Degree $|\Omega_{\mathrm{train}}^n|$")
-    ax2.set_ylabel("Test RMSE (Stars)")
-    ax2.legend(loc="upper right", fontsize=7.5, frameon=True)
+    ax2.set_xlabel(r"(b) Movie Deg. $|\Omega^n|$")
+    ax2.set_ylabel("Test RMSE")
+    ax2.legend(loc="upper right", fontsize=7.5, frameon=False)
 
     fig.tight_layout()
     fig10_path = figures_dir / "fig10_genre_als_coldstart.pdf"
