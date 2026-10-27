@@ -127,10 +127,10 @@ def main() -> None:
 
     # Categorize popular movies by primary genre for color-coding
     cat_colors = {
-        "Sci-Fi / Fantasy Blockbusters": "#1f4e78",
-        "Acclaimed Drama / Crime": "#1b9e77",
-        "Horror / Action / Camp": "#d95f02",
-        "Family / Animation / Comedy": "#7570b3",
+        "Sci-Fi / Fantasy": "#1f4e78",
+        "Drama / Crime": "#1b9e77",
+        "Horror / Action": "#d95f02",
+        "Family / Comedy": "#7570b3",
     }
     cat_points: Dict[str, List[int]] = {k: [] for k in cat_colors}
 
@@ -138,105 +138,94 @@ def main() -> None:
         m_id = idx_to_movie_id[idx]
         g_set = set(id_to_genres.get(m_id, []))
         if "Animation" in g_set or "Children" in g_set:
-            cat_points["Family / Animation / Comedy"].append(int(idx))
+            cat_points["Family / Comedy"].append(int(idx))
         elif "Horror" in g_set:
-            cat_points["Horror / Action / Camp"].append(int(idx))
+            cat_points["Horror / Action"].append(int(idx))
         elif "Sci-Fi" in g_set or "Fantasy" in g_set:
-            cat_points["Sci-Fi / Fantasy Blockbusters"].append(int(idx))
+            cat_points["Sci-Fi / Fantasy"].append(int(idx))
         elif "Drama" in g_set or "Crime" in g_set:
-            cat_points["Acclaimed Drama / Crime"].append(int(idx))
+            cat_points["Drama / Crime"].append(int(idx))
         else:
-            cat_points["Family / Animation / Comedy"].append(int(idx))
+            cat_points["Family / Comedy"].append(int(idx))
 
-    fig, ax = plt.subplots(1, 1, figsize=(6.6, 3.8))
+    fig, ax = plt.subplots(1, 1, figsize=(6.6, 3.6))
     for cat_name, indices_list in cat_points.items():
         pts = v2d[indices_list]
         ax.scatter(
             pts[:, 0],
             pts[:, 1],
             s=11,
-            alpha=0.48,
+            alpha=0.42,
             color=cat_colors[cat_name],
             label=cat_name,
             edgecolors="none",
             rasterized=True,
         )
 
-    # Annotate landmark movies
-    landmark_queries = [
-        ("Fellowship of the Ring", "LotR: Fellowship (2001)"),
-        ("Return of the King", "LotR: Return of the King (2003)"),
-        ("Matrix, The (1999)", "The Matrix (1999)"),
-        ("Star Wars: Episode IV", "Star Wars IV (1977)"),
-        ("Pulp Fiction (1994)", "Pulp Fiction (1994)"),
-        ("Godfather, The (1972)", "The Godfather (1972)"),
-        ("Shawshank Redemption", "Shawshank Redemption (1994)"),
-        ("Toy Story (1995)", "Toy Story (1995)"),
-        ("Lion King, The (1994)", "The Lion King (1994)"),
-        ("Spirited Away", "Spirited Away (2001)"),
-        ("Twilight (2008)", "Twilight (2008)"),
-        ("Dumb & Dumber (Dumb and Dumber) (1994)", "Dumb & Dumber (1994)"),
-        ("Saw (2004)", "Saw (2004)"),
-        ("Blair Witch Project", "Blair Witch Project (1999)"),
-        ("Fargo (1996)", "Fargo (1996)"),
-        ("Inception (2010)", "Inception (2010)"),
-        ("Dark Knight, The (2008)", "The Dark Knight (2008)"),
-        ("Titanic (1997)", "Titanic (1997)"),
+    # Annotate ONLY movies explicitly discussed in Section 4.7 of main.tex
+    landmarks_to_plot = [
+        (339, "LotR: Fellowship", 1.25, 1.48),
+        (613, "LotR: Return", -0.65, 1.75),
+        (370, "Inception", 1.15, 2.38),
+        (1032, "Twilight", -2.10, 1.85),
+        (88, "Titanic", -1.35, 0.35),
+        (218, "Godfather", 1.35, 0.72),
+        (159, "Pulp Fiction", 2.42, 0.88),
+        (26, "Fargo", 2.45, -0.35),
+        (168, "Lion King", -1.35, -0.45),
+        (415, "Toy Story", 0.85, -0.80),
+        (153, "Dumb & Dumber", 0.65, -3.55),
     ]
 
     annotated_coords = []
-    for substr, short_label in landmark_queries:
-        best_idx = None
-        best_cnt = -1
-        for idx in pop_indices:
-            title = meta.movie_titles[idx]
-            if substr.lower() in title.lower() and movie_total_counts[idx] > best_cnt:
-                best_idx = int(idx)
-                best_cnt = int(movie_total_counts[idx])
-        if best_idx is not None:
-            x_val, y_val = float(v2d[best_idx, 0]), float(v2d[best_idx, 1])
-            ax.scatter(
-                [x_val],
-                [y_val],
-                s=34,
-                color="black",
-                marker="o",
-                zorder=5,
-            )
-            # Offset text slightly to avoid overlapping point
-            dx = 0.03 if x_val >= 0 else -0.03
-            dy = 0.03 if len(annotated_coords) % 2 == 0 else -0.04
-            ax.annotate(
-                short_label,
-                xy=(x_val, y_val),
-                xytext=(x_val + dx, y_val + dy),
-                fontsize=7.5,
-                fontweight="bold",
-                bbox=dict(
-                    boxstyle="round,pad=0.15",
-                    fc="white",
-                    ec="gray",
-                    alpha=0.82,
-                    lw=0.4,
-                ),
-                arrowprops=dict(arrowstyle="-", color="black", lw=0.5),
-                zorder=6,
-            )
-            annotated_coords.append(
-                {
-                    "label": short_label,
-                    "movie_idx": best_idx,
-                    "x": x_val,
-                    "y": y_val,
-                    "count": best_cnt,
-                }
-            )
+    for best_idx, short_label, tx, ty in landmarks_to_plot:
+        best_cnt = int(movie_total_counts[best_idx])
+        x_val, y_val = float(v2d[best_idx, 0]), float(v2d[best_idx, 1])
+        ax.scatter(
+            [x_val],
+            [y_val],
+            s=32,
+            color="black",
+            marker="o",
+            edgecolors="white",
+            linewidth=0.5,
+            zorder=5,
+        )
+        ax.annotate(
+            short_label,
+            xy=(x_val, y_val),
+            xytext=(tx, ty),
+            fontsize=7.5,
+            fontweight="bold",
+            ha="center",
+            va="center",
+            bbox=dict(
+                boxstyle="round,pad=0.18",
+                fc="white",
+                ec="0.55",
+                alpha=0.92,
+                lw=0.45,
+            ),
+            arrowprops=dict(arrowstyle="-", color="0.3", lw=0.6, shrinkA=0, shrinkB=2),
+            zorder=6,
+        )
+        annotated_coords.append(
+            {
+                "label": short_label,
+                "movie_idx": best_idx,
+                "x": x_val,
+                "y": y_val,
+                "count": best_cnt,
+            }
+        )
 
     ax.axhline(0.0, color="gray", linestyle=":", linewidth=0.8)
     ax.axvline(0.0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlabel("Latent Trait Dimension 1 ($v_{n,1}$)")
-    ax.set_ylabel("Latent Trait Dimension 2 ($v_{n,2}$)")
-    ax.legend(loc="best", frameon=True)
+    ax.set_xlim(-3.0, 3.15)
+    ax.set_ylim(-4.05, 3.55)
+    ax.set_xlabel("Dim. 1 ($v_{n,1}$)")
+    ax.set_ylabel("Dim. 2 ($v_{n,2}$)")
+    ax.legend(loc="lower left", frameon=True, facecolor="white", framealpha=0.9, fontsize=7.5, markerscale=1.4)
 
     fig.tight_layout()
     fig7_path = figures_dir / "fig7_movie_2d_embeddings.pdf"
@@ -381,19 +370,19 @@ def main() -> None:
         color="#1f4e78",
         edgecolors="none",
         rasterized=True,
-        label="All active movies",
+        label="Movies",
     )
     ax1.axvline(
         1000,
         color="#d95f02",
         linestyle="--",
         linewidth=1.2,
-        label=r"Sample control ($|\Omega^n| \geq 1000$)",
+        label=r"$|\Omega^n| \geq 10^3$",
     )
     ax1.set_xscale("log")
-    ax1.set_xlabel(r"(a) Movie Training Ratings $|\Omega^n|$ (log scale)")
-    ax1.set_ylabel(r"Trait Vector Magnitude $\|v_n\|_2$")
-    ax1.legend(loc="upper left", frameon=True)
+    ax1.set_xlabel(r"(a) Ratings $|\Omega^n|$")
+    ax1.set_ylabel(r"Norm $\|v_n\|_2$")
+    ax1.legend(loc="upper left", frameon=False, fontsize=7.5)
 
     ax2.scatter(
         active_stds,
@@ -403,7 +392,7 @@ def main() -> None:
         color="#1b9e77",
         edgecolors="none",
         rasterized=True,
-        label=r"Movies ($|\Omega^n| \geq 100$)",
+        label=r"$|\Omega^n| \geq 100$",
     )
     # Highlight top polarizing and least polarizing on panel (b)
     pol_stds = [e.rating_std for e in most_pol[:5]]
@@ -417,7 +406,7 @@ def main() -> None:
         color="#d95f02",
         marker="^",
         zorder=5,
-        label="Top-5 Polarizing",
+        label="Polarizing",
     )
     ax2.scatter(
         con_stds,
@@ -426,11 +415,12 @@ def main() -> None:
         color="#7570b3",
         marker="s",
         zorder=5,
-        label="Top-5 Consensus",
+        label="Consensus",
     )
-    ax2.set_xlabel(r"(b) Empirical Rating Std. Dev. $\sigma(r_{\cdot,n})$")
-    ax2.set_ylabel(r"Trait Vector Magnitude $\|v_n\|_2$")
-    ax2.legend(loc="upper left", frameon=True)
+    ax2.set_ylim(0, 8.6)
+    ax2.set_xlabel(r"(b) Rating Std. $\sigma_n$")
+    ax2.set_ylabel(r"Norm $\|v_n\|_2$")
+    ax2.legend(loc="upper left", frameon=False, fontsize=7.0, ncol=1)
 
     fig.tight_layout()
     fig8_path = figures_dir / "fig8_polarizing_movies.pdf"

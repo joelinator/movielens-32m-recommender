@@ -474,7 +474,94 @@ the weight $\alpha$ on the movie bias $b_n$ makes a big difference. \Cref{tab:du
 \multicolumn{6}{l}{\emph{Setting A: Full Movie Bias $s_{1.0}(\text{new}, n) = u_{\text{new}}^\top v_n + b_n$ (All Movies)}} \\
 1 & Hello \& Goodbye (2018) & Documentary & $0.0002$ & $+3.2712$ & $1$ \\
 2 & SpongeBob SquarePants: Heroes of Bikini Bottom (2011) & Animation|Comedy & $-0.0067$ & $+3.2557$ & $2$ \\
+3 & Wesley (2009) & Biography|Drama & $0.0002$ & $+3.1869$ & $1$ \\
+4 & Very Ordinary Couple (2013) & Comedy|Drama|Romance & $0.0033$ & $+3.1516$ & $2$ \\
+5 & Raise High the Roof Beam, Carpenters (2018) & Documentary & $0.0002$ & $+3.0586$ & $1$ \\
+\midrule
+\multicolumn{6}{l}{\emph{Setting B: Downweighted Bias $s_{0.05}(\text{new}, n) = u_{\text{new}}^\top v_n + 0.05\,b_n$ (All Movies)}} \\
+1 & \textbf{Lord of the Rings: The Return of the King, The (2003)} & Action|Adventure|Fantasy & $0.2170$ & $+0.5102$ & $54,037$ \\
+2 & \textbf{Lord of the Rings: The Two Towers, The (2002)} & Adventure|Fantasy & $0.2143$ & $+0.4784$ & $54,016$ \\
+3 & Hello \& Goodbye (2018) & Documentary & $0.0002$ & $+3.2712$ & $1$ \\
+4 & Wesley (2009) & Biography|Drama & $0.0002$ & $+3.1869$ & $1$ \\
+5 & \textbf{Hobbit: An Unexpected Journey, The (2012)} & Adventure|Fantasy|IMAX & $0.1590$ & $-0.0259$ & $12,821$ \\
+\midrule
+\multicolumn{6}{l}{\emph{Setting C: Downweighted Bias $s_{0.05}(\text{new}, n) = u_{\text{new}}^\top v_n + 0.05\,b_n$ with $|\Omega_{\text{train}}^n| \ge 100$}} \\
+1 & \textbf{Lord of the Rings: The Return of the King, The (2003)} & Action|Adventure|Fantasy & $0.2170$ & $+0.5102$ & $54,037$ \\
+2 & \textbf{Lord of the Rings: The Two Towers, The (2002)} & Adventure|Fantasy & $0.2143$ & $+0.4784$ & $54,016$ \\
+3 & \textbf{Hobbit: An Unexpected Journey, The (2012)} & Adventure|Fantasy|IMAX & $0.1590$ & $-0.0259$ & $12,821$ \\
+4 & \textbf{Hobbit: The Desolation of Smaug, The (2013)} & Adventure|Fantasy|IMAX & $0.1550$ & $-0.1144$ & $9,701$ \\
+5 & \textbf{The Hobbit: The Battle of the Five Armies (2014)} & Adventure|Fantasy & $0.1523$ & $-0.2369$ & $6,951$ \\
+6 & Braveheart (1995) & Action|Drama|War & $0.1114$ & $+0.2622$ & $55,834$ \\
+7 & Harry Potter and the Deathly Hallows: Part 2 (2011) & Action|Adventure|Fantasy & $0.1110$ & $+0.1150$ & $16,242$ \\
+8 & Harry Potter and the Half-Blood Prince (2009) & Adventure|Fantasy|Mystery & $0.1141$ & $+0.0189$ & $16,869$ \\
+9 & Harry Potter and the Order of the Phoenix (2007) & Adventure|Drama|Fantasy & $0.1138$ & $+0.0061$ & $16,841$ \\
+10 & Harry Potter and the Prisoner of Azkaban (2004) & Adventure|Fantasy|IMAX & $0.1063$ & $+0.1546$ & $25,037$ \\
+\bottomrule
+\end{tabular}
+\end{small}
+\end{center}
+\vskip -0.1in
+\end{table*}
 
+\Cref{tab:dummy_user_lotr} shows why downweighting the bias is important for a 1-rating user:
+\begin{itemize}
+    \item \textbf{Why Full Bias ($\alpha=1.0$) Fails}: Because $u_{\text{new}}$ is shrunk by $\tau$, the largest dot product $u_{\text{new}}^\top v_n$ across all movies is $+0.2170$. Meanwhile, obscure movies with only $1$ or $2$ ratings that happened to get $5.0$ stars from a tough critic ($a_m \approx -2.1$) end up with a bias $b_n \approx +3.27$. When $\alpha = 1.0$, those $1$-rating movies dominate the top of the list even though their dot product with the user is zero ($0.0002$).
+    \item \textbf{Downweighting the Bias ($\alpha=0.05$) Recovers the Exact Trilogy}: Lowering the bias weight to $\alpha = 0.05$ (Setting B) immediately puts \emph{The Lord of the Rings: The Return of the King (2003)} at Rank 1 and \emph{The Two Towers (2002)} at Rank 2, with \emph{The Hobbit: An Unexpected Journey (2012)} at Rank 5. Adding a simple filter requiring at least $100$ ratings (Setting C) removes the remaining $1$-rating outliers and produces a remarkably clean Top-10 list: Ranks 1--5 are all five remaining Middle-earth movies (\emph{Lord of the Rings} and \emph{The Hobbit}), followed by \emph{Braveheart} (Rank 6) and four \emph{Harry Potter} movies (Ranks 7--10). We also tested a dummy user who gave $5.0$ stars to \emph{Toy Story (1995)}, and the model recommended \emph{Toy Story 3}, \emph{Toy Story 2}, \emph{Finding Nemo}, \emph{The Incredibles}, and \emph{WALL$\cdot$E} as Ranks 1--5.
+\end{itemize}
+
+\subsection{Most and Least Polarizing Movies}
+
+In our model, the bias $b_n$ tells us whether a movie is liked on average by everyone, while the trait vector $v_n \in \mathbb{R}^K$ tells us how much a movie's rating depends on a specific user's taste $u_m$. If user vectors have covariance $\text{Cov}(u_m) \approx \sigma_u^2 I_K$, then the variance of the personalized score $u_m^\top v_n$ across users is proportional to the squared length of $v_n$:
+\begin{equation}
+\text{Var}_m(u_m^\top v_n) \approx \sigma_u^2 \|v_n\|_2^2.
+\label{eq:polarization_variance}
+\end{equation}
+This means movies with a \textbf{large vector length $\|v_n\|_2$} are \textbf{polarizing}: fans with matching taste ($u_m^\top v_n \gg 0$) love them, while viewers with opposite taste ($u_m^\top v_n \ll 0$) strongly dislike them. In contrast, movies with a \textbf{small vector length $\|v_n\|_2$} are \textbf{consensus (least polarizing) movies}: most viewers agree on their score once we account for the baseline $\mu + a_m + b_n$.
+
+\begin{figure}[t]
+\vskip 0.1in
+\begin{center}
+\centerline{\includegraphics[width=\columnwidth]{figures/fig8_polarizing_movies.pdf}}
+\caption{Movie vector length $\|v_n\|_2$ ($K=16$) and polarization on MovieLens-32M. \textbf{(a)} Vector length $\|v_n\|_2$ vs.\ number of training ratings $|\Omega_{\text{train}}^n|$. \textbf{(b)} Top polarizing vs.\ least polarizing movies among well-sampled films ($|\Omega_{\text{train}}^n| \ge 1,000$).}
+\label{fig:polarizing_movies}
+\end{center}
+\vskip -0.2in
+\end{figure}
+
+\textbf{Ruling Out Overfitting and Sample-Size Effects:} As shown in \cref{fig:polarizing_movies}(a), we have to be careful before claiming a movie is polarizing or non-polarizing based on $\|v_n\|_2$ alone. If a movie only has $1$ or $2$ ratings, regularization $\tau$ shrinks $v_n$ close to zero ($\|v_n\|_2 \approx 0$), not because everyone agrees on the movie, but simply because we have almost no data! On the other hand, a movie with $20$ or $30$ ratings can get an artificially long vector $\|v_n\|_2$ by overfitting a small group of extreme raters. To make sure our claim cannot be explained by overfitting or small sample size, we only compare movies that have at least $|\Omega_{\text{train}}^n| \ge 1{,}000$ training ratings ($4{,}394$ movies in MovieLens-32M). With over $1{,}000$ ratings to estimate $K=16$ numbers, each movie vector is backed by plenty of data.
+
+\begin{table*}[t]
+\caption{Top-10 most polarizing (largest $\|v_n\|_2$) and Top-10 least polarizing (smallest $\|v_n\|_2$) movies with at least $1{,}000$ training ratings ($K=16$ on MovieLens-32M), along with movie bias $b_n$, rating count $|\Omega_{\text{train}}^n|$, and rating standard deviation $\sigma(r)$.}
+\label{tab:polarizing_movies}
+\vskip 0.1in
+\begin{center}
+\begin{small}
+\begin{tabular}{clrrrr}
+\toprule
+\textbf{Rank} & \textbf{Movie Title} & $\|v_n\|_2$ & \textbf{Movie Bias} $b_n$ & $|\Omega_{\text{train}}^n|$ & \textbf{Rating Std} $\sigma(r)$ \\
+\midrule
+\multicolumn{6}{l}{\emph{Top-10 Most Polarizing Movies ($\max \|v_n\|_2$ among movies with $|\Omega_{\text{train}}^n| \ge 1,000$)}} \\
+1 & Star Wars: Episode II -- Attack of the Clones (2002) & $8.000$ & $-0.5765$ & $21,907$ & $1.146$ \\
+2 & Star Wars: Episode III -- Revenge of the Sith (2005) & $7.819$ & $-0.2665$ & $19,751$ & $1.124$ \\
+3 & Star Wars: Episode I -- The Phantom Menace (1999) & $7.754$ & $-0.5638$ & $30,338$ & $1.143$ \\
+4 & Dumb \& Dumber (1994) & $7.732$ & $-0.6289$ & $29,483$ & $1.204$ \\
+5 & Lord of the Rings: The Return of the King, The (2003) & $7.730$ & $+0.5102$ & $54,037$ & $1.011$ \\
+6 & Blair Witch Project, The (1999) & $7.632$ & $-0.7025$ & $18,180$ & $1.228$ \\
+7 & Lord of the Rings: The Two Towers, The (2002) & $7.632$ & $+0.4784$ & $54,016$ & $1.000$ \\
+8 & Star Wars: Episode IV -- A New Hope (1977) & $7.557$ & $+0.3851$ & $67,968$ & $0.988$ \\
+9 & Harry Potter and the Half-Blood Prince (2009) & $7.554$ & $+0.0189$ & $16,869$ & $1.007$ \\
+10 & Lord of the Rings: The Fellowship of the Ring, The (2001) & $7.543$ & $+0.5191$ & $58,491$ & $1.008$ \\
+\midrule
+\multicolumn{6}{l}{\emph{Top-10 Least Polarizing Movies ($\min \|v_n\|_2$ among movies with $|\Omega_{\text{train}}^n| \ge 1,000$)}} \\
+1 & Cobb (1994) & $0.892$ & $-0.2659$ & $1,023$ & $0.825$ \\
+2 & Pirates of Silicon Valley (1999) & $1.119$ & $+0.1437$ & $1,061$ & $0.778$ \\
+3 & Sea of Love (1989) & $1.248$ & $+0.0381$ & $1,038$ & $0.757$ \\
+4 & Black Book (Zwartboek) (2006) & $1.263$ & $+0.4203$ & $1,014$ & $0.767$ \\
+5 & Run Silent Run Deep (1958) & $1.347$ & $+0.2111$ & $1,089$ & $0.749$ \\
+6 & Wait Until Dark (1967) & $1.354$ & $+0.4110$ & $1,132$ & $0.748$ \\
+7 & Proof (2005) & $1.366$ & $-0.0011$ & $1,001$ & $0.834$ \\
+8 & Rescue Dawn (2006) & $1.371$ & $+0.1189$ & $1,316$ & $0.701$ \\
+9 & Everest (2015) & $1.373$ & $-0.0605$ & $1,252$ & $0.823$ \\
 10 & Counterfeiters, The (Die F\"alscher) (2007) & $1.398$ & $+0.4343$ & $1,131$ & $0.695$ \\
 \bottomrule
 \end{tabular}

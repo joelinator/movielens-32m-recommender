@@ -119,7 +119,7 @@ def main() -> None:
         color="#1f4e78",
         edgecolor="black",
         linewidth=0.4,
-        label="MovieLens-32M (Full)",
+        label="ML-32M",
     )
     ax1.bar(
         x_pos + width / 2,
@@ -128,13 +128,13 @@ def main() -> None:
         color="#5b9bd5",
         edgecolor="black",
         linewidth=0.4,
-        label="MovieLens-5M (Subset)",
+        label="ML-5M",
     )
     ax1.set_xticks(x_pos)
-    ax1.set_xticklabels([f"{s:.1f}" for s in star_values])
-    ax1.set_xlabel("(a) Star Rating Value $r_{m,n}$")
-    ax1.set_ylabel("Percentage of Ratings (%)")
-    ax1.legend(loc="upper left", frameon=True)
+    ax1.set_xticklabels([f"{s:.1f}" for s in star_values], fontsize=7.5)
+    ax1.set_xlabel("(a) Rating $r_{m,n}$")
+    ax1.set_ylabel("Share (%)")
+    ax1.legend(loc="upper left", frameon=False)
 
     # Right panel: Log-log degree frequency scatter (number of movies/users vs degree k)
     u_vals, u_freq = np.unique(user_deg_full[user_deg_full > 0], return_counts=True)
@@ -147,7 +147,7 @@ def main() -> None:
         alpha=0.55,
         color="#d95f02",
         edgecolors="none",
-        label=r"Movies (degree $|\Omega^n|$)",
+        label="Movies",
         rasterized=True,
     )
     ax2.scatter(
@@ -157,22 +157,23 @@ def main() -> None:
         alpha=0.55,
         color="#1b9e77",
         edgecolors="none",
-        label=r"Users (degree $|\Omega_m|$)",
+        label="Users",
         rasterized=True,
     )
     ax2.axvline(
         20,
         color="#333333",
         linestyle=":",
-        linewidth=1.2,
-        label="User curation cutoff ($k_{\\min}=20$)",
+        linewidth=1.1,
+        label="$k_{\\min}=20$",
     )
 
     ax2.set_xscale("log")
     ax2.set_yscale("log")
-    ax2.set_xlabel("(b) Degree $k$ (Number of Ratings)")
-    ax2.set_ylabel("Frequency Count $N(k)$")
-    ax2.legend(loc="upper right", frameon=True)
+    ax2.set_ylim(0.7, 3e5)
+    ax2.set_xlabel("(b) Degree $k$")
+    ax2.set_ylabel("Count $N(k)$")
+    ax2.legend(loc="upper right", frameon=False, markerscale=1.4)
 
     fig.tight_layout()
     fig1_path = figures_dir / "fig1_dataset_distributions.pdf"
@@ -234,17 +235,17 @@ def main() -> None:
         iters,
         loss_u_32m,
         color="#1f4e78",
-        linewidth=1.6,
-        label="32M: User CSR view $\\mathcal{L}_{\\mathrm{user}}$",
+        linewidth=1.5,
+        label="32M $\\mathcal{L}_U$",
     )
     ax1.scatter(
         iters[::2],
         loss_m_32m[::2],
         color="#d95f02",
         marker="o",
-        s=22,
+        s=18,
         zorder=4,
-        label="32M: Movie CSR view $\\mathcal{L}_{\\mathrm{movie}}$",
+        label="32M $\\mathcal{L}_M$",
     )
 
     ax1_twin = ax1.twinx()
@@ -256,42 +257,42 @@ def main() -> None:
         color="#1b9e77",
         linestyle="--",
         linewidth=1.4,
-        label="5M: User CSR view $\\mathcal{L}_{\\mathrm{user}}$",
+        label="5M $\\mathcal{L}_U$",
     )
     ax1_twin.scatter(
         iters[1::2],
         loss_m_5m[1::2],
         color="#7570b3",
         marker="s",
-        s=18,
+        s=16,
         zorder=4,
-        label="5M: Movie CSR view $\\mathcal{L}_{\\mathrm{movie}}$",
+        label="5M $\\mathcal{L}_M$",
     )
     ax1_twin.grid(False)
 
-    ax1.set_xlabel("(a) ALS Iteration $t$")
-    ax1.set_ylabel("32M Objective $\\mathcal{L}(a,b)$ ($\\times 10^6$)")
-    ax1_twin.set_ylabel("5M Objective $\\mathcal{L}(a,b)$ ($\\times 10^6$)")
+    ax1.set_xlabel("(a) Iter. $t$")
+    ax1.set_ylabel("32M Loss ($\\times 10^6$)")
+    ax1_twin.set_ylabel("5M Loss ($\\times 10^6$)")
 
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=7.5)
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     # Right panel: Train and Test RMSE
     ax2.plot(
         iters,
         res_bias_full.train_rmse,
         color="#1f4e78",
-        linewidth=1.6,
-        label="32M Train RMSE",
+        linewidth=1.5,
+        label="32M Train",
     )
     ax2.plot(
         iters,
         res_bias_full.test_rmse,
         color="#d95f02",
-        linewidth=1.6,
+        linewidth=1.5,
         linestyle="-.",
-        label="32M Test RMSE",
+        label="32M Test",
     )
     ax2.plot(
         iters,
@@ -299,7 +300,7 @@ def main() -> None:
         color="#1b9e77",
         linewidth=1.4,
         linestyle="--",
-        label="5M Train RMSE",
+        label="5M Train",
     )
     ax2.plot(
         iters,
@@ -307,11 +308,11 @@ def main() -> None:
         color="#7570b3",
         linewidth=1.4,
         linestyle=":",
-        label="5M Test RMSE",
+        label="5M Test",
     )
-    ax2.set_xlabel("(b) ALS Iteration $t$")
-    ax2.set_ylabel("Root Mean Squared Error (Stars)")
-    ax2.legend(loc="upper right", frameon=True)
+    ax2.set_xlabel("(b) Iter. $t$")
+    ax2.set_ylabel("RMSE")
+    ax2.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     fig.tight_layout()
     fig2_path = figures_dir / "fig2_bias_als_convergence.pdf"

@@ -121,9 +121,9 @@ def main() -> None:
         np.array(pmf_full_k10.train_loss) / 1e6,
         color="#1f4e78",
         marker="o",
-        markersize=3.5,
+        markersize=3.2,
         linewidth=1.5,
-        label=r"32M Objective $\mathcal{L}(\Theta)$ ($\tau=7$)",
+        label=r"32M ($\tau=7$)",
     )
     ax1_twin = ax1.twinx()
     ax1_twin.plot(
@@ -131,33 +131,33 @@ def main() -> None:
         np.array(pmf_small_k10.train_loss) / 1e6,
         color="#1b9e77",
         marker="s",
-        markersize=3.5,
+        markersize=3.2,
         linestyle="--",
         linewidth=1.5,
-        label=r"5M Objective $\mathcal{L}(\Theta)$ ($\tau=5$)",
+        label=r"5M ($\tau=5$)",
     )
     ax1_twin.grid(False)
-    ax1.set_xlabel("(a) ALS Iteration $t$")
-    ax1.set_ylabel(r"32M Objective $\mathcal{L}(\Theta)$ ($\times 10^6$)")
-    ax1_twin.set_ylabel(r"5M Objective $\mathcal{L}(\Theta)$ ($\times 10^6$)")
+    ax1.set_xlabel("(a) Iter. $t$")
+    ax1.set_ylabel(r"32M Loss ($\times 10^6$)")
+    ax1_twin.set_ylabel(r"5M Loss ($\times 10^6$)")
     l1, lab1 = ax1.get_legend_handles_labels()
     l2, lab2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(l1 + l2, lab1 + lab2, loc="upper right")
+    ax1.legend(l1 + l2, lab1 + lab2, loc="upper right", frameon=False)
 
     ax2.plot(
         iters,
         pmf_full_k10.train_rmse,
         color="#1f4e78",
-        linewidth=1.6,
-        label="32M Train RMSE ($K=10$)",
+        linewidth=1.5,
+        label="32M Train",
     )
     ax2.plot(
         iters,
         pmf_full_k10.test_rmse,
         color="#d95f02",
-        linewidth=1.6,
+        linewidth=1.5,
         linestyle="-.",
-        label="32M Test RMSE ($K=10$)",
+        label="32M Test",
     )
     ax2.plot(
         iters,
@@ -165,7 +165,7 @@ def main() -> None:
         color="#1b9e77",
         linewidth=1.4,
         linestyle="--",
-        label="5M Train RMSE ($K=10$)",
+        label="5M Train",
     )
     ax2.plot(
         iters,
@@ -173,11 +173,11 @@ def main() -> None:
         color="#7570b3",
         linewidth=1.4,
         linestyle=":",
-        label="5M Test RMSE ($K=10$)",
+        label="5M Test",
     )
-    ax2.set_xlabel("(b) ALS Iteration $t$")
-    ax2.set_ylabel("Root Mean Squared Error (Stars)")
-    ax2.legend(loc="upper right", frameon=True)
+    ax2.set_xlabel("(b) Iter. $t$")
+    ax2.set_ylabel("RMSE")
+    ax2.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     fig.tight_layout()
     fig3_path = figures_dir / "fig3_pmf_loss_and_rmse.pdf"
@@ -247,36 +247,36 @@ def main() -> None:
             hp_results[str(gamma_val)]["test_rmse"],
             color=colors[idx],
             marker=markers[idx],
-            markersize=4,
+            markersize=3.8,
             linewidth=1.4,
-            label=rf"5M Test ($\gamma={gamma_val}$)",
+            label=rf"$\gamma={gamma_val}$",
         )
-    ax1.set_xlabel(r"(a) Factor Prior Precision $\tau$ ($\lambda=1.0$)")
-    ax1.set_ylabel("5M Test RMSE (Stars)")
-    ax1.legend(loc="upper right", frameon=True)
+    ax1.set_xlabel(r"(a) Reg. $\tau$ (5M)")
+    ax1.set_ylabel("Test RMSE")
+    ax1.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     ax2.plot(
         tau_grid_32m,
         hp_32m_test,
         color="#d95f02",
         marker="o",
-        markersize=4.5,
-        linewidth=1.6,
-        label=r"32M Test RMSE ($\gamma=0.05$)",
+        markersize=4.0,
+        linewidth=1.5,
+        label="Test",
     )
     ax2.plot(
         tau_grid_32m,
         hp_32m_train,
         color="#1f4e78",
         marker="s",
-        markersize=4.5,
+        markersize=4.0,
         linestyle="--",
         linewidth=1.5,
-        label=r"32M Train RMSE ($\gamma=0.05$)",
+        label="Train",
     )
-    ax2.set_xlabel(r"(b) Factor Prior Precision $\tau$ on MovieLens-32M")
-    ax2.set_ylabel("32M RMSE (Stars)")
-    ax2.legend(loc="center right", frameon=True)
+    ax2.set_xlabel(r"(b) Reg. $\tau$ (32M)")
+    ax2.set_ylabel("RMSE")
+    ax2.legend(loc="center right", frameon=False)
 
     fig.tight_layout()
     fig4_path = figures_dir / "fig4_hyperparameter_search.pdf"
@@ -405,48 +405,48 @@ def main() -> None:
             rmses.append(float(np.sqrt(tot_sse / max(1, tot_cnt))))
         bucket_rmse[name] = rmses
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.75))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.55))
     ax1.plot(
         k_list_32m,
         k_32m_test,
         color="#1f4e78",
         marker="o",
-        markersize=4,
-        linewidth=1.6,
-        label=r"32M Test ($\tau=7$)",
+        markersize=3.8,
+        linewidth=1.5,
+        label="32M Test",
     )
     ax1.plot(
         k_list_32m,
         k_32m_train,
         color="#1f4e78",
         marker="o",
-        markersize=3.5,
+        markersize=3.2,
         linestyle="--",
         linewidth=1.2,
-        label=r"32M Train ($\tau=7$)",
+        label="32M Train",
     )
     ax1.plot(
         k_list_5m,
         k_5m_tuned_test,
         color="#1b9e77",
         marker="s",
-        markersize=4,
-        linewidth=1.5,
-        label=r"5M Test ($\tau=5$)",
+        markersize=3.8,
+        linewidth=1.4,
+        label=r"5M ($\tau=5$)",
     )
     ax1.plot(
         k_list_5m,
         k_5m_weak_test,
         color="#d95f02",
         marker="^",
-        markersize=4,
+        markersize=3.8,
         linestyle="-.",
-        linewidth=1.5,
-        label=r"5M Test ($\tau=1$, Overfit)",
+        linewidth=1.4,
+        label=r"5M ($\tau=1$)",
     )
-    ax1.set_xlabel("(a) Latent Dimension $K$")
-    ax1.set_ylabel("Root Mean Squared Error (Stars)")
-    ax1.legend(loc="upper right", fontsize=7.5, frameon=True)
+    ax1.set_xlabel("(a) Rank $K$")
+    ax1.set_ylabel("RMSE")
+    ax1.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     x_b = np.arange(len(bucket_labels))
     ax2.plot(
@@ -454,44 +454,44 @@ def main() -> None:
         bucket_rmse["K10_weak"],
         color="#1f4e78",
         marker="o",
-        markersize=4,
+        markersize=3.8,
         linestyle="--",
         linewidth=1.4,
-        label=r"$K=10, \tau=1$ (Weak Reg.)",
+        label=r"$K=10, \tau=1$",
     )
     ax2.plot(
         x_b,
         bucket_rmse["K20_weak"],
         color="#d95f02",
         marker="^",
-        markersize=4,
+        markersize=3.8,
         linestyle="--",
         linewidth=1.4,
-        label=r"$K=20, \tau=1$ (Severe Overfit)",
+        label=r"$K=20, \tau=1$",
     )
     ax2.plot(
         x_b,
         bucket_rmse["K10_tuned"],
         color="#1b9e77",
         marker="s",
-        markersize=4,
-        linewidth=1.5,
-        label=r"$K=10, \tau=5$ (Tuned)",
+        markersize=3.8,
+        linewidth=1.4,
+        label=r"$K=10, \tau=5$",
     )
     ax2.plot(
         x_b,
         bucket_rmse["K20_tuned"],
         color="#7570b3",
         marker="D",
-        markersize=4,
-        linewidth=1.5,
-        label=r"$K=20, \tau=5$ (Tuned)",
+        markersize=3.8,
+        linewidth=1.4,
+        label=r"$K=20, \tau=5$",
     )
     ax2.set_xticks(x_b)
-    ax2.set_xticklabels(bucket_labels, rotation=20)
-    ax2.set_xlabel(r"(b) User Train Degree $|\Omega_m^{\mathrm{train}}|$")
-    ax2.set_ylabel("Test RMSE by Activity Bucket")
-    ax2.legend(loc="upper right", fontsize=7.5, frameon=True)
+    ax2.set_xticklabels(bucket_labels, fontsize=7.5)
+    ax2.set_xlabel(r"(b) User Deg. $|\Omega_m|$")
+    ax2.set_ylabel("Test RMSE")
+    ax2.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
 
     fig.tight_layout()
     fig5_path = figures_dir / "fig5_k_scaling_and_overfitting.pdf"
@@ -560,7 +560,7 @@ def main() -> None:
             f"(Speedup={t_ser/t_par:.2f}x), NumPy={t_np:.2f}s | 32M Par={t_32m:.3f}s"
         )
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.75))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.8, 2.55))
     valid_np_k = [k for k, t in zip(bench_k, times_5m_numpy) if not np.isnan(t)]
     valid_np_t = [t for t in times_5m_numpy if not np.isnan(t)]
 
@@ -569,42 +569,43 @@ def main() -> None:
         valid_np_t,
         color="#d95f02",
         marker="^",
-        markersize=4.5,
-        linewidth=1.5,
-        label="5M: Vectorized Batched NumPy",
+        markersize=4.0,
+        linewidth=1.4,
+        label="5M NumPy",
     )
     ax1.plot(
         bench_k,
         times_5m_serial,
         color="#7570b3",
         marker="s",
-        markersize=4.5,
-        linewidth=1.5,
-        label="5M: Numba CSR Serial (1 Thread)",
+        markersize=4.0,
+        linewidth=1.4,
+        label="5M 1T",
     )
     ax1.plot(
         bench_k,
         times_5m_parallel,
         color="#1b9e77",
         marker="o",
-        markersize=4.5,
-        linewidth=1.6,
-        label="5M: Numba CSR Parallel (12 Threads)",
+        markersize=4.0,
+        linewidth=1.5,
+        label="5M 12T",
     )
     ax1.plot(
         bench_k,
         times_32m_parallel,
         color="#1f4e78",
         marker="D",
-        markersize=4.5,
+        markersize=4.0,
         linestyle="--",
-        linewidth=1.6,
-        label="32M: Numba CSR Parallel (12 Threads)",
+        linewidth=1.5,
+        label="32M 12T",
     )
     ax1.set_yscale("log")
-    ax1.set_xlabel("(a) Latent Dimension $K$")
-    ax1.set_ylabel("Wall-Clock Time per Epoch (s, log scale)")
-    ax1.legend(loc="upper left", fontsize=7.2, frameon=True)
+    ax1.set_ylim(0.035, 35.0)
+    ax1.set_xlabel("(a) Rank $K$")
+    ax1.set_ylabel("Time / Ep. (s)")
+    ax1.legend(loc="upper left", fontsize=7.0, ncol=2, frameon=False)
 
     speedup_vs_serial = np.array(times_5m_serial) / np.array(times_5m_parallel)
     speedup_vs_numpy = np.array(valid_np_t) / np.array(
@@ -616,22 +617,22 @@ def main() -> None:
         speedup_vs_numpy,
         color="#d95f02",
         marker="^",
-        markersize=4.5,
-        linewidth=1.6,
-        label="Speedup vs. Batched NumPy",
+        markersize=4.0,
+        linewidth=1.5,
+        label="vs. NumPy",
     )
     ax2.plot(
         bench_k,
         speedup_vs_serial,
         color="#1f4e78",
         marker="o",
-        markersize=4.5,
-        linewidth=1.6,
-        label="Multi-Core Speedup (12T vs. 1T Numba)",
+        markersize=4.0,
+        linewidth=1.5,
+        label="12T vs. 1T",
     )
-    ax2.set_xlabel("(b) Latent Dimension $K$")
-    ax2.set_ylabel("Speedup Factor ($\\times$)")
-    ax2.legend(loc="center right", frameon=True)
+    ax2.set_xlabel("(b) Rank $K$")
+    ax2.set_ylabel("Speedup ($\\times$)")
+    ax2.legend(loc="center right", frameon=False)
 
     fig.tight_layout()
     fig6_path = figures_dir / "fig6_runtime_benchmark.pdf"
