@@ -250,17 +250,104 @@ def main() -> None:
         "(no genres listed)": ("Other", "#7570b3", "D"),
     }
 
-    text_genres = {
-        "Drama": (0.85, 0.36),
-        "Crime": (0.50, 0.36),
-        "Film-Noir": (0.48, -0.02),
-        "Documentary": (0.98, 0.08),
-        "Sci-Fi": (-0.68, 0.88),
-        "Action": (-0.42, 0.82),
-        "Horror": (-0.72, -0.58),
-        "Children": (-0.72, -0.18),
-        "Animation": (-0.18, 0.45),
-        "Comedy": (-0.18, -0.62),
+    labeled_genre_groups = {
+        "Drama / Crime": ["Drama", "Crime", "Film-Noir", "Documentary"],
+        "Action / Sci-Fi": ["Sci-Fi", "Action", "Horror"],
+        "Family / Light": ["Children", "Animation", "Comedy"],
+    }
+    genre_name_to_id = {name: i for i, name in enumerate(meta_full.genre_names)}
+
+    def compute_dynamic_opposite_positions(
+        pts: np.ndarray,
+        labels: list[str],
+        group_ids: list[int],
+        x_span: float,
+        y_span: float,
+    ) -> np.ndarray:
+        n = pts.shape[0]
+        scale = np.array([x_span, y_span], dtype=np.float64)
+        norm_pts = pts / scale
+
+        init_dirs = np.zeros((n, 2), dtype=np.float64)
+        for i in range(n):
+            rep = np.zeros(2, dtype=np.float64)
+            for j in range(n):
+                if i == j:
+                    continue
+                diff = norm_pts[i] - norm_pts[j]
+                dist_sq = float(np.dot(diff, diff)) + 1e-5
+                weight = 2.5 if group_ids[i] == group_ids[j] else 0.6
+                rep += weight * diff / dist_sq
+            norm_val = float(np.linalg.norm(rep)) + 1e-9
+            init_dirs[i] = rep / norm_val
+
+        base_r = 0.115
+        label_norm_pos = norm_pts + base_r * init_dirs
+        box_w = np.array([0.0155 * len(lbl) + 0.035 for lbl in labels], dtype=np.float64)
+        box_h = np.full(n, 0.082, dtype=np.float64)
+
+        for _ in range(80):
+            for i in range(n):
+                for j in range(i + 1, n):
+                    dx = label_norm_pos[i, 0] - label_norm_pos[j, 0]
+                    dy = label_norm_pos[i, 1] - label_norm_pos[j, 1]
+                    min_dx = 0.55 * (box_w[i] + box_w[j])
+                    min_dy = 0.62 * (box_h[i] + box_h[j])
+                    if abs(dx) < min_dx and abs(dy) < min_dy:
+                        overlap_x = min_dx - abs(dx)
+                        overlap_y = min_dy - abs(dy)
+                        if overlap_x < overlap_y:
+                            sx = 1.0 if dx >= 0 else -1.0
+                            label_norm_pos[i, 0] += 0.35 * overlap_x * sx
+                            label_norm_pos[j, 0] -= 0.35 * overlap_x * sx
+                        else:
+                            sy = 1.0 if dy >= 0 else -1.0
+                            label_norm_pos[i, 1] += 0.35 * overlap_y * sy
+                            label_norm_pos[j, 1] -= 0.35 * overlap_y * sy
+
+            for i in range(n):
+                for j in range(n):
+                    dx = label_norm_pos[i, 0] - norm_pts[j, 0]
+                    dy = label_norm_pos[i, 1] - norm_pts[j, 1]
+                    min_dx = 0.52 * box_w[i] + 0.02
+                    min_dy = 0.55 * box_h[i] + 0.02
+                    if abs(dx) < min_dx and abs(dy) < min_dy:
+                        sy = 1.0 if dy >= 0 else -1.0
+                        sx = 1.0 if dx >= 0 else -1.0
+                        label_norm_pos[i, 0] += 0.20 * (min_dx - abs(dx)) * sx
+                        label_norm_pos[i, 1] += 0.25 * (min_dy - abs(dy)) * sy
+
+                disp = label_norm_pos[i] - norm_pts[i]
+                dist = float(np.linalg.norm(disp)) + 1e-9
+                if dist > 0.22:
+                    label_norm_pos[i] = norm_pts[i] + disp * (0.22 / dist)
+                elif dist < 0.075:
+                    label_norm_pos[i] = norm_pts[i] + disp * (0.075 / dist)
+
+        return label_norm_pos * scale
+
+    g_indices: list[int] = []
+    g_labels: list[str] = []
+    g_group_ids: list[int] = []
+    for grp_id, g_list in enumerate(labeled_genre_groups.values()):
+        for g in g_list:
+            if g in genre_name_to_id:
+                g_indices.append(genre_name_to_id[g])
+                g_labels.append(g)
+                g_group_ids.append(grp_id)
+
+    labeled_pts = f2d[g_indices]
+    x_min, x_max = float(np.min(labeled_pts[:, 0])), float(np.max(labeled_pts[:, 0]))
+    y_min, y_max = float(np.min(labeled_pts[:, 1])), float(np.max(labeled_pts[:, 1]))
+    x_span = x_max - x_min
+    y_span = y_max - y_min
+
+    g_label_coords = compute_dynamic_opposite_positions(
+        labeled_pts, g_labels, g_group_ids, x_span, y_span
+    )
+    dynamic_genre_pos = {
+        g_name: (float(pos[0]), float(pos[1]))
+        for g_name, pos in zip(g_labels, g_label_coords)
     }
 
     plotted_families = set()
@@ -273,7 +360,7 @@ def main() -> None:
         lbl = fam_label if fam_label not in plotted_families else None
         if lbl is not None:
             plotted_families.add(fam_label)
-        is_labeled = g_name in text_genres
+        is_labeled = g_name in dynamic_genre_pos
         ax.scatter(
             [gx],
             [gy],
@@ -287,7 +374,7 @@ def main() -> None:
             label=lbl,
         )
         if is_labeled:
-            tx, ty = text_genres[g_name]
+            tx, ty = dynamic_genre_pos[g_name]
             ax.annotate(
                 g_name,
                 xy=(gx, gy),
@@ -321,11 +408,18 @@ def main() -> None:
 
     ax.axhline(0.0, color="gray", linestyle=":", linewidth=0.8)
     ax.axvline(0.0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlim(-1.05, 1.35)
-    ax.set_ylim(-0.92, 1.12)
+    ax.set_xlim(x_min - 0.25 * x_span, x_max + 0.25 * x_span)
+    ax.set_ylim(y_min - 0.22 * y_span, y_max + 0.30 * y_span)
     ax.set_xlabel(r"Dim. 1 ($f_{g,1}$)")
     ax.set_ylabel(r"Dim. 2 ($f_{g,2}$)")
-    ax.legend(loc="lower right", frameon=True, facecolor="white", framealpha=0.9, fontsize=7.2)
+    ax.legend(
+        loc="upper left",
+        frameon=True,
+        facecolor="white",
+        framealpha=0.9,
+        fontsize=7.0,
+        ncol=2,
+    )
 
     fig.tight_layout()
     fig9_path = figures_dir / "fig9_genre_2d_embeddings.pdf"

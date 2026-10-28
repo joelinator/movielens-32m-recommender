@@ -163,22 +163,136 @@ def main() -> None:
         )
 
     # Annotate ONLY movies explicitly discussed in Section 4.7 of main.tex
-    landmarks_to_plot = [
-        (339, "LotR: Fellowship", 1.25, 1.48),
-        (613, "LotR: Return", -0.65, 1.75),
-        (370, "Inception", 1.15, 2.38),
-        (1032, "Twilight", -2.10, 1.85),
-        (88, "Titanic", -1.35, 0.35),
-        (218, "Godfather", 1.35, 0.72),
-        (159, "Pulp Fiction", 2.42, 0.88),
-        (26, "Fargo", 2.45, -0.35),
-        (168, "Lion King", -1.35, -0.45),
-        (415, "Toy Story", 0.85, -0.80),
-        (153, "Dumb & Dumber", 0.65, -3.55),
-    ]
+    # Group landmark movies by cluster so nearby points dynamically receive opposite offsets
+    landmark_groups = {
+        "Sci-Fi / Fantasy": [
+            "Lord of the Rings: The Fellowship of the Ring",
+            "Lord of the Rings: The Return of the King",
+            "Inception (2010)",
+        ],
+        "Romance": [
+            "Twilight (2008)",
+            "Titanic (1997)",
+        ],
+        "Drama / Crime": [
+            "Godfather, The (1972)",
+            "Pulp Fiction (1994)",
+            "Fargo (1996)",
+        ],
+        "Family / Comedy": [
+            "Lion King, The (1994)",
+            "Toy Story (1995)",
+            "Dumb & Dumber",
+        ],
+    }
+
+    def format_short_title(raw_title: str) -> str:
+        base = raw_title.split("(")[0].replace(", The", "").strip()
+        base = base.replace("Lord of the Rings: The ", "LotR: ")
+        base = base.replace("Fellowship of the Ring", "Fellowship")
+        base = base.replace("Return of the King", "Return")
+        return base
+
+    def compute_dynamic_opposite_positions(
+        pts: np.ndarray,
+        labels: List[str],
+        group_ids: List[int],
+        x_span: float,
+        y_span: float,
+    ) -> np.ndarray:
+        n = pts.shape[0]
+        scale = np.array([x_span, y_span], dtype=np.float64)
+        norm_pts = pts / scale
+
+        init_dirs = np.zeros((n, 2), dtype=np.float64)
+        for i in range(n):
+            rep = np.zeros(2, dtype=np.float64)
+            for j in range(n):
+                if i == j:
+                    continue
+                diff = norm_pts[i] - norm_pts[j]
+                dist_sq = float(np.dot(diff, diff)) + 1e-5
+                weight = 2.5 if group_ids[i] == group_ids[j] else 0.6
+                rep += weight * diff / dist_sq
+            norm_val = float(np.linalg.norm(rep)) + 1e-9
+            init_dirs[i] = rep / norm_val
+
+        base_r = 0.115
+        label_norm_pos = norm_pts + base_r * init_dirs
+        box_w = np.array([0.0155 * len(lbl) + 0.035 for lbl in labels], dtype=np.float64)
+        box_h = np.full(n, 0.082, dtype=np.float64)
+
+        for _ in range(80):
+            for i in range(n):
+                for j in range(i + 1, n):
+                    dx = label_norm_pos[i, 0] - label_norm_pos[j, 0]
+                    dy = label_norm_pos[i, 1] - label_norm_pos[j, 1]
+                    min_dx = 0.55 * (box_w[i] + box_w[j])
+                    min_dy = 0.62 * (box_h[i] + box_h[j])
+                    if abs(dx) < min_dx and abs(dy) < min_dy:
+                        overlap_x = min_dx - abs(dx)
+                        overlap_y = min_dy - abs(dy)
+                        if overlap_x < overlap_y:
+                            sx = 1.0 if dx >= 0 else -1.0
+                            label_norm_pos[i, 0] += 0.35 * overlap_x * sx
+                            label_norm_pos[j, 0] -= 0.35 * overlap_x * sx
+                        else:
+                            sy = 1.0 if dy >= 0 else -1.0
+                            label_norm_pos[i, 1] += 0.35 * overlap_y * sy
+                            label_norm_pos[j, 1] -= 0.35 * overlap_y * sy
+
+            for i in range(n):
+                for j in range(n):
+                    dx = label_norm_pos[i, 0] - norm_pts[j, 0]
+                    dy = label_norm_pos[i, 1] - norm_pts[j, 1]
+                    min_dx = 0.52 * box_w[i] + 0.02
+                    min_dy = 0.55 * box_h[i] + 0.02
+                    if abs(dx) < min_dx and abs(dy) < min_dy:
+                        sy = 1.0 if dy >= 0 else -1.0
+                        sx = 1.0 if dx >= 0 else -1.0
+                        label_norm_pos[i, 0] += 0.20 * (min_dx - abs(dx)) * sx
+                        label_norm_pos[i, 1] += 0.25 * (min_dy - abs(dy)) * sy
+
+                disp = label_norm_pos[i] - norm_pts[i]
+                dist = float(np.linalg.norm(disp)) + 1e-9
+                if dist > 0.22:
+                    label_norm_pos[i] = norm_pts[i] + disp * (0.22 / dist)
+                elif dist < 0.075:
+                    label_norm_pos[i] = norm_pts[i] + disp * (0.075 / dist)
+
+        return label_norm_pos * scale
+
+    all_indices: List[int] = []
+    all_labels: List[str] = []
+    all_group_ids: List[int] = []
+    for g_idx, group_queries in enumerate(landmark_groups.values()):
+        for q in group_queries:
+            best_idx = -1
+            best_cnt = -1
+            for m_idx, m_id in enumerate(idx_to_movie_id):
+                title = id_to_title.get(m_id, "")
+                if q.lower() in title.lower() and int(movie_total_counts[m_idx]) > best_cnt:
+                    best_idx = m_idx
+                    best_cnt = int(movie_total_counts[m_idx])
+            if best_idx >= 0:
+                all_indices.append(best_idx)
+                raw_t = id_to_title[idx_to_movie_id[best_idx]]
+                all_labels.append(format_short_title(raw_t))
+                all_group_ids.append(g_idx)
+
+    pop_pts = v2d[pop_indices]
+    x_min, x_max = float(np.min(pop_pts[:, 0])), float(np.max(pop_pts[:, 0]))
+    y_min, y_max = float(np.min(pop_pts[:, 1])), float(np.max(pop_pts[:, 1]))
+    x_span = x_max - x_min
+    y_span = y_max - y_min
+
+    lm_pts = v2d[all_indices]
+    label_coords = compute_dynamic_opposite_positions(
+        lm_pts, all_labels, all_group_ids, x_span, y_span
+    )
 
     annotated_coords = []
-    for best_idx, short_label, tx, ty in landmarks_to_plot:
+    for best_idx, short_label, (tx, ty) in zip(all_indices, all_labels, label_coords):
         best_cnt = int(movie_total_counts[best_idx])
         x_val, y_val = float(v2d[best_idx, 0]), float(v2d[best_idx, 1])
         ax.scatter(
@@ -194,7 +308,7 @@ def main() -> None:
         ax.annotate(
             short_label,
             xy=(x_val, y_val),
-            xytext=(tx, ty),
+            xytext=(float(tx), float(ty)),
             fontsize=7.5,
             fontweight="bold",
             ha="center",
@@ -206,7 +320,9 @@ def main() -> None:
                 alpha=0.92,
                 lw=0.45,
             ),
-            arrowprops=dict(arrowstyle="-", color="0.3", lw=0.6, shrinkA=0, shrinkB=2),
+            arrowprops=dict(
+                arrowstyle="-", color="0.3", lw=0.6, shrinkA=0, shrinkB=2
+            ),
             zorder=6,
         )
         annotated_coords.append(
@@ -221,8 +337,8 @@ def main() -> None:
 
     ax.axhline(0.0, color="gray", linestyle=":", linewidth=0.8)
     ax.axvline(0.0, color="gray", linestyle=":", linewidth=0.8)
-    ax.set_xlim(-3.0, 3.15)
-    ax.set_ylim(-4.05, 3.55)
+    ax.set_xlim(x_min - 0.16 * x_span, x_max + 0.18 * x_span)
+    ax.set_ylim(y_min - 0.14 * y_span, y_max + 0.12 * y_span)
     ax.set_xlabel("Dim. 1 ($v_{n,1}$)")
     ax.set_ylabel("Dim. 2 ($v_{n,2}$)")
     ax.legend(loc="lower left", frameon=True, facecolor="white", framealpha=0.9, fontsize=7.5, markerscale=1.4)
